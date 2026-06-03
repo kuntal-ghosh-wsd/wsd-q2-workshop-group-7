@@ -1,0 +1,243 @@
+<mxfile host="app.diagrams.net" agent="claude-code" version="24.0.0">
+  <diagram name="Architecture" id="product-spec-pipeline-arch">
+    <mxGraphModel dx="1600" dy="1400" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1320" pageHeight="1320" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===== INPUT ===== -->
+        <mxCell id="100" value="requirement.md&#10;(brief / raw requirements)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4d6;strokeColor=#a37b00;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="560" y="40" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ===== SKILL (outer container — label-only) ===== -->
+        <mxCell id="200" value="product-spec-pipeline Skill — distributed identically across 4 harnesses" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#f4f8ff;strokeColor=#3056a3;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="110" width="1240" height="285" as="geometry" />
+        </mxCell>
+
+        <!-- 4 harness boxes -->
+        <mxCell id="210" value=".claude/skills/&#10;product-spec-pipeline/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0ff;strokeColor=#3056a3;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="60" y="150" width="280" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="211" value=".codex/skills/&#10;product-spec-pipeline/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0ff;strokeColor=#3056a3;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="360" y="150" width="280" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="212" value=".cursor/skills/&#10;product-spec-pipeline/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0ff;strokeColor=#3056a3;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="660" y="150" width="280" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="213" value=".gemini/skills/&#10;product-spec-pipeline/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0ff;strokeColor=#3056a3;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="960" y="150" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Per-harness contents container (dashed, indicates &quot;same in each&quot;) -->
+        <mxCell id="220" value="Per-harness contents (identical)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#ffffff;strokeColor=#3056a3;dashed=1;fontSize=11;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="60" y="220" width="1200" height="165" as="geometry" />
+        </mxCell>
+
+        <mxCell id="230" value="SKILL.md&#10;&#10;stage selector,&#10;quality gates,&#10;folder layout" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f0ff;strokeColor=#3056a3;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="80" y="250" width="270" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="231" value="references/&#10;&#10;prd.md, user-stories.md,&#10;acceptance-criteria.md,&#10;tad.md, build-sequence.md,&#10;review-bundle.md" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f0ff;strokeColor=#3056a3;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="370" y="250" width="270" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="232" value="assets/ — templates&#10;&#10;prd-template.md,&#10;user-stories-template.md,&#10;tad-template.md,&#10;build-sequence-template.json,&#10;review-bundle-template.json,&#10;review-viewer.html" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f0ff;strokeColor=#3056a3;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="660" y="250" width="270" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="233" value="assets/schemas/&#10;&#10;prd.schema.json,&#10;user-stories.schema.json,&#10;tad.schema.json,&#10;build-sequence.schema.json" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6e6;strokeColor=#a33030;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="950" y="250" width="290" height="125" as="geometry" />
+        </mxCell>
+
+        <!-- ===== PIPELINE container ===== -->
+        <mxCell id="300" value="5-stage authoring pipeline" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#f4faf5;strokeColor=#2f7a3a;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="430" width="280" height="660" as="geometry" />
+        </mxCell>
+        <mxCell id="310" value="Stage 1 — PRD&#10;(what &amp; why)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9f7ec;strokeColor=#2f7a3a;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="60" y="480" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="311" value="Stage 2 — User Stories&#10;(how users experience it)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9f7ec;strokeColor=#2f7a3a;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="60" y="570" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="312" value="Stage 3 — Acceptance Criteria&#10;(extends Stage 2 in place)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9f7ec;strokeColor=#2f7a3a;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="60" y="660" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="313" value="Stage 4 — TAD&#10;(how it&apos;s built)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9f7ec;strokeColor=#2f7a3a;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="60" y="750" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="314" value="Stage 5 — Build Sequence&#10;(ordered FBS units, DAG)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9f7ec;strokeColor=#2f7a3a;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="60" y="840" width="240" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ===== GENERATORS container ===== -->
+        <mxCell id="400" value="scripts/ — deterministic one-shot generators" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#faf6ff;strokeColor=#6a3aa8;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="360" y="430" width="280" height="660" as="geometry" />
+        </mxCell>
+        <mxCell id="410" value="generate-user-stories.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#6a3aa8;fontFamily=monospace;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="380" y="600" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="411" value="generate-tad.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#6a3aa8;fontFamily=monospace;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="380" y="755" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="412" value="generate-build-sequence.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#6a3aa8;fontFamily=monospace;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="380" y="845" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="413" value="generate-review-bundle.py" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8ff;strokeColor=#6a3aa8;fontFamily=monospace;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="380" y="1010" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ===== OUTPUT container ===== -->
+        <mxCell id="500" value="docs/specs/&lt;feature&gt;/ — per-feature output (current: client-docs-hub)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#fffbf3;strokeColor=#a08a30;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="680" y="430" width="320" height="660" as="geometry" />
+        </mxCell>
+        <mxCell id="510" value="prd/&#10;PRD.md  +  PRD-NNN.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffdf0;strokeColor=#a08a30;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="700" y="480" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="511" value="user-stories/&#10;USER-STORIES.md  +  PRD-NNN-user-stories.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffdf0;strokeColor=#a08a30;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="700" y="600" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="512" value="tad/&#10;TAD.md  +  TAD-NNN-001..004.json (1–4 parts)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffdf0;strokeColor=#a08a30;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="700" y="755" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="513" value="build-sequence/&#10;BUILD-SEQUENCE.md  +  BS-NNN.json (FBS DAG)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffdf0;strokeColor=#a08a30;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="700" y="845" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="520" value="manifest.json&#10;(per-feature index — id + path of every artifact)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe8d6;strokeColor=#a35a00;fontSize=11;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="700" y="930" width="280" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="530" value="reviewer bundle&#10;&lt;feature&gt;-requirements-review.html  +  .json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f7fa;strokeColor=#2a7d8c;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="700" y="1005" width="280" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ===== DOWNSTREAM container ===== -->
+        <mxCell id="600" value="Downstream skills (hand-off after Stage 5)" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#f5f5f5;strokeColor=#444444;fontSize=13;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1040" y="430" width="240" height="660" as="geometry" />
+        </mxCell>
+        <mxCell id="610" value="dev-implementation&#10;&#10;slice FBS →&#10;commits &amp; PRs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#444444;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="1060" y="560" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="611" value="test-author&#10;&#10;ACs →&#10;executable tests" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#444444;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="1060" y="680" width="200" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="612" value="qa-reviewer&#10;&#10;release-readiness&#10;review" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#444444;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="1060" y="800" width="200" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ===== EDGES: brief → skill → pipeline ===== -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3056a3;strokeWidth=2;endArrow=block;endFill=1" edge="1" parent="1" source="100" target="200">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2f7a3a;strokeWidth=2;endArrow=block;endFill=1" edge="1" parent="1" source="200" target="310">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Pipeline chain -->
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2f7a3a;endArrow=block;endFill=1" edge="1" parent="1" source="310" target="311">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2f7a3a;endArrow=block;endFill=1" edge="1" parent="1" source="311" target="312">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2f7a3a;endArrow=block;endFill=1" edge="1" parent="1" source="312" target="313">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2f7a3a;endArrow=block;endFill=1" edge="1" parent="1" source="313" target="314">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Stage 1 writes prd/ directly (no generator) -->
+        <mxCell id="e7" value="writes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a08a30;endArrow=block;endFill=1;fontSize=10" edge="1" parent="1" source="310" target="510">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Stages → generators -->
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6a3aa8;endArrow=block;endFill=1" edge="1" parent="1" source="311" target="410">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6a3aa8;endArrow=block;endFill=1" edge="1" parent="1" source="312" target="410">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6a3aa8;endArrow=block;endFill=1" edge="1" parent="1" source="313" target="411">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6a3aa8;endArrow=block;endFill=1" edge="1" parent="1" source="314" target="412">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2a7d8c;endArrow=block;endFill=1" edge="1" parent="1" source="310" target="413">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2a7d8c;endArrow=block;endFill=1" edge="1" parent="1" source="311" target="413">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Generators → output folders -->
+        <mxCell id="e14" value="emits md+JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a08a30;endArrow=block;endFill=1;fontSize=10" edge="1" parent="1" source="410" target="511">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="emits md+JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a08a30;endArrow=block;endFill=1;fontSize=10" edge="1" parent="1" source="411" target="512">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="emits md+JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a08a30;endArrow=block;endFill=1;fontSize=10" edge="1" parent="1" source="412" target="513">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" value="emits HTML+JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2a7d8c;endArrow=block;endFill=1;fontSize=10" edge="1" parent="1" source="413" target="530">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Output folders → manifest -->
+        <mxCell id="e18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a35a00;endArrow=block;endFill=1;dashed=1;dashPattern=4 4" edge="1" parent="1" source="510" target="520">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a35a00;endArrow=block;endFill=1;dashed=1;dashPattern=4 4" edge="1" parent="1" source="511" target="520">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a35a00;endArrow=block;endFill=1;dashed=1;dashPattern=4 4" edge="1" parent="1" source="512" target="520">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a35a00;endArrow=block;endFill=1;dashed=1;dashPattern=4 4" edge="1" parent="1" source="513" target="520">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Manifest → downstream -->
+        <mxCell id="e22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=2;endArrow=block;endFill=1" edge="1" parent="1" source="520" target="610">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=2;endArrow=block;endFill=1" edge="1" parent="1" source="520" target="611">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=2;endArrow=block;endFill=1" edge="1" parent="1" source="520" target="612">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Schemas validate the output JSON (single representative dashed line, labelled) -->
+        <mxCell id="e30" value="validates&#10;all generated JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#a33030;dashed=1;dashPattern=6 4;endArrow=open;endFill=0;fontSize=10;fontStyle=2" edge="1" parent="1" source="233" target="500">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1095" y="405" />
+              <mxPoint x="840" y="405" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== LEGEND ===== -->
+        <mxCell id="700" value="Legend" style="rounded=0;whiteSpace=wrap;html=1;verticalAlign=top;fillColor=#fafafa;strokeColor=#888;fontSize=12;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="1130" width="1240" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="710" value="Solid arrow — data / artifact flow" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;align=left;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="60" y="1160" width="320" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="711" value="Orange dashed — folder is indexed by manifest.json" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;align=left;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="60" y="1185" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="712" value="Red dashed — schema-based validation gate" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;align=left;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="60" y="1210" width="380" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="713" value="Colour key — Yellow: input · Blue: Skill · Green: pipeline stages · Purple: generators · Red: schemas · Cream: stage artifacts · Orange: manifest · Teal: reviewer bundle · Grey: downstream skills" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;align=left;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="60" y="1240" width="1200" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="714" value="Invariants — dual output per stage (md + JSON)  ·  JSON is canonical  ·  every JSON validates against assets/schemas/  ·  per-stage subfolders (prd/, user-stories/, tad/, build-sequence/)  ·  Build Sequence is a DAG (no AC orphans, no FBS cycles)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;align=left;fontSize=11;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="60" y="1265" width="1200" height="30" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
