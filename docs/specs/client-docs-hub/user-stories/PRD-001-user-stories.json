@@ -1,0 +1,1673 @@
+{
+  "prdId": "PRD-001",
+  "version": "1.0.0",
+  "status": "draft",
+  "stories": [
+    {
+      "id": "US-001",
+      "reqId": "REQ-001",
+      "title": "Manage sync allow-list",
+      "description": "As a documentation administrator, I want to manage the allow-list of Confluence labels and source spaces that are eligible to sync so that only intentionally-tagged pages can ever be published to the client portal.",
+      "asA": "documentation administrator",
+      "iWant": "to manage the allow-list of Confluence labels and source spaces that are eligible to sync",
+      "soThat": "only intentionally-tagged pages can ever be published to the client portal",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-001",
+          "description": "Given an admin opens the sync configuration page, when they add a label to the allow-list and save, then the label appears in the active list and the change is audit-logged with the admin's identity and timestamp.",
+          "testable": true
+        },
+        {
+          "id": "AC-002",
+          "description": "Given an admin removes a label from the allow-list, when the next sync cycle runs, then pages whose only allow-list match was that label are unpublished from the portal and the unpublish is audit-logged.",
+          "testable": true
+        },
+        {
+          "id": "AC-003",
+          "description": "Given an unauthenticated user or a user without the admin role, when they request the sync configuration page, then they receive a 403 and the attempt is audit-logged.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "reqId": "REQ-001",
+      "title": "Sync engine respects allow-list",
+      "description": "As a sync engine, I want to evaluate each candidate Confluence page against the active allow-list before considering it for publish so that pages outside the configured tag/space scope never enter the publishing pipeline.",
+      "asA": "sync engine",
+      "iWant": "to evaluate each candidate Confluence page against the active allow-list before considering it for publish",
+      "soThat": "pages outside the configured tag/space scope never enter the publishing pipeline",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-004",
+          "description": "Given a Confluence page that carries no allow-listed label and lives outside any allow-listed space, when the sync cycle runs, then the page is skipped and a debug-level log records the skip with the page ID.",
+          "testable": true
+        },
+        {
+          "id": "AC-005",
+          "description": "Given a Confluence page that carries at least one allow-listed label, when the sync cycle runs, then the page proceeds to the approval-state check (REQ-002).",
+          "testable": true
+        },
+        {
+          "id": "AC-006",
+          "description": "Given the allow-list is empty, when the sync cycle runs, then zero pages are published and an admin-visible warning is surfaced.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "reqId": "REQ-002",
+      "title": "Approval-state gating",
+      "description": "As a publishing pipeline, I want to publish only Confluence pages whose configured approval signal is present so that drafts and in-review pages never reach clients.",
+      "asA": "publishing pipeline",
+      "iWant": "to publish only Confluence pages whose configured approval signal is present",
+      "soThat": "drafts and in-review pages never reach clients",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-007",
+          "description": "Given a Confluence page with the configured approval signal absent (e.g. draft state, missing approval label), when the sync evaluates it, then publishing is blocked and the page does not appear on the portal.",
+          "testable": true
+        },
+        {
+          "id": "AC-008",
+          "description": "Given a Confluence page with the configured approval signal present, when the sync evaluates it, then it proceeds to the AI document-review stage (REQ-040).",
+          "testable": true
+        },
+        {
+          "id": "AC-009",
+          "description": "Given an admin reconfigures the approval signal, when the change is saved, then the active signal is logged and the next sync cycle applies the new rule.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "reqId": "REQ-002",
+      "title": "Loss of approval triggers unpublish",
+      "description": "As a publishing pipeline, I want to unpublish a page that loses its approval state after publish so that the portal never serves content that has reverted to draft.",
+      "asA": "publishing pipeline",
+      "iWant": "to unpublish a page that loses its approval state after publish",
+      "soThat": "the portal never serves content that has reverted to draft",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-010",
+          "description": "Given a previously published page, when its approval signal is removed in Confluence, then on the next sync cycle the page is unpublished from the portal within 5 minutes (p95).",
+          "testable": true
+        },
+        {
+          "id": "AC-011",
+          "description": "Given a page is unpublished due to loss of approval, when a client navigates to its URL, then they receive a clear 'not available' message rather than a stale cached copy.",
+          "testable": true
+        },
+        {
+          "id": "AC-012",
+          "description": "Given a page is unpublished due to loss of approval, when the unpublish completes, then the version history of that page is preserved and the unpublish event is audit-logged with cause = 'approval-state-loss'.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "reqId": "REQ-003",
+      "title": "Webhook-driven sync within SLA",
+      "description": "As a sync engine, I want to receive Confluence page-change webhooks and publish updates within the SLA so that approved changes reach the portal in near real-time without operator action.",
+      "asA": "sync engine",
+      "iWant": "to receive Confluence page-change webhooks and publish updates within the SLA",
+      "soThat": "approved changes reach the portal in near real-time without operator action",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-013",
+          "description": "Given a webhook event arrives for an approved, allow-listed page, when the sync pipeline processes it, then the new version is visible on the portal within 5 minutes at p95 measured from webhook receipt to portal cache hit.",
+          "testable": true
+        },
+        {
+          "id": "AC-014",
+          "description": "Given the webhook delivery is duplicated (Confluence retries), when the pipeline processes the duplicate, then no duplicate version is created and the duplicate is recorded as deduped in logs.",
+          "testable": true
+        },
+        {
+          "id": "AC-015",
+          "description": "Given a webhook payload that fails schema validation, when received, then the event is rejected with a 400 and an alert is raised, with no partial publish.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-006",
+      "reqId": "REQ-003",
+      "title": "Polling sync fallback",
+      "description": "As a sync engine, I want to fall back to a polling sync on a configurable interval when webhooks are unavailable so that the portal stays in sync even if Confluence cannot deliver webhooks.",
+      "asA": "sync engine",
+      "iWant": "to fall back to a polling sync on a configurable interval when webhooks are unavailable",
+      "soThat": "the portal stays in sync even if Confluence cannot deliver webhooks",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-016",
+          "description": "Given webhooks have been disabled or have failed for longer than a configurable threshold, when the polling interval elapses, then the engine fetches the recently-changed page list from Confluence and processes eligible pages.",
+          "testable": true
+        },
+        {
+          "id": "AC-017",
+          "description": "Given polling is active and a page has been updated since the last poll, when the engine processes it, then it follows the same allow-list \u2192 approval \u2192 AI-review path as webhook-driven sync.",
+          "testable": true
+        },
+        {
+          "id": "AC-018",
+          "description": "Given webhooks recover, when the first webhook arrives after recovery, then polling continues for one additional cycle to backfill any missed events, then quiesces.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-007",
+      "reqId": "REQ-003",
+      "title": "Sync latency observability",
+      "description": "As a platform engineer, I want to observe sync latency as a first-class metric with alerting so that the SLA is enforced operationally and regressions are caught before clients notice.",
+      "asA": "platform engineer",
+      "iWant": "to observe sync latency as a first-class metric with alerting",
+      "soThat": "the SLA is enforced operationally and regressions are caught before clients notice",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-019",
+          "description": "Given the sync pipeline is running, when a page completes publishing, then the end-to-end latency from approval to portal visibility is emitted as a histogram metric tagged by page and pipeline stage.",
+          "testable": true
+        },
+        {
+          "id": "AC-020",
+          "description": "Given p95 sync latency exceeds 5 minutes over a rolling 15-minute window, when the threshold is breached, then a paging alert is fired to the on-call channel.",
+          "testable": true
+        },
+        {
+          "id": "AC-021",
+          "description": "Given a platform engineer opens the sync dashboard, when they select a time range, then they see per-stage latency breakdowns (webhook receipt \u2192 allow-list \u2192 approval \u2192 AI review \u2192 publish).",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-008",
+      "reqId": "REQ-004",
+      "title": "Version history retention",
+      "description": "As a publishing pipeline, I want to persist each successful publish as an immutable version with at least the last 20 versions retained per page so that clients and auditors can refer back to any recent published state.",
+      "asA": "publishing pipeline",
+      "iWant": "to persist each successful publish as an immutable version with at least the last 20 versions retained per page",
+      "soThat": "clients and auditors can refer back to any recent published state",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-022",
+          "description": "Given a page is successfully published, when the publish commits, then a new immutable version record is written containing the rendered content, publish timestamp, source Confluence version ID, and publisher identity.",
+          "testable": true
+        },
+        {
+          "id": "AC-023",
+          "description": "Given a page has 21 published versions, when the 22nd is published, then the oldest version is dropped from active storage but its metadata (timestamp, source version, publisher) is retained in the audit log.",
+          "testable": true
+        },
+        {
+          "id": "AC-024",
+          "description": "Given an attempt to modify an existing version record, when the write is issued, then the data layer rejects it and the attempt is audit-logged as a tamper attempt.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-009",
+      "reqId": "REQ-004",
+      "title": "Version metadata visible to clients",
+      "description": "As a portal user, I want to see metadata for each version of a page (when published, by whom, source Confluence revision) so that I can decide which version to read or cite.",
+      "asA": "portal user",
+      "iWant": "to see metadata for each version of a page (when published, by whom, source Confluence revision)",
+      "soThat": "I can decide which version to read or cite",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-025",
+          "description": "Given a portal user opens the version history view of a page, when the page renders, then each listed version shows publish timestamp, version number, and the source Confluence revision number.",
+          "testable": true
+        },
+        {
+          "id": "AC-026",
+          "description": "Given a portal user hovers / focuses a version row, when the row is active, then a tooltip / detail panel shows the publisher's name in a non-PII-leaking form (display name only).",
+          "testable": true
+        },
+        {
+          "id": "AC-027",
+          "description": "Given a version row is rendered, when no source Confluence revision is available (legacy import), then 'Source revision: unavailable' is shown rather than an empty field.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-010",
+      "reqId": "REQ-005",
+      "title": "Render fidelity for rich content",
+      "description": "As a publishing pipeline, I want to preserve Confluence page structure on publish for headings, lists, tables, code blocks, and inline images so that the portal reads as faithfully as the Confluence source.",
+      "asA": "publishing pipeline",
+      "iWant": "to preserve Confluence page structure on publish for headings, lists, tables, code blocks, and inline images",
+      "soThat": "the portal reads as faithfully as the Confluence source",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-028",
+          "description": "Given a Confluence page containing headings (h1\u2013h4), lists, tables, code blocks (with language hint), and inline images, when the page is published, then the rendered portal page preserves the same structural elements with the same semantic markup.",
+          "testable": true
+        },
+        {
+          "id": "AC-029",
+          "description": "Given a code block in Confluence has a language hint, when the page is rendered on the portal, then the corresponding code block carries the matching language class for syntax highlighting.",
+          "testable": true
+        },
+        {
+          "id": "AC-030",
+          "description": "Given an inline image in Confluence, when the page is rendered on the portal, then the image is served from a per-page asset path with the same alt-text as the source.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-011",
+      "reqId": "REQ-005",
+      "title": "Cross-link rewriting",
+      "description": "As a publishing pipeline, I want to rewrite cross-page links so links to published pages resolve and links to non-published pages do not leak so that clients never click into broken or unauthorized destinations.",
+      "asA": "publishing pipeline",
+      "iWant": "to rewrite cross-page links so links to published pages resolve and links to non-published pages do not leak",
+      "soThat": "clients never click into broken or unauthorized destinations",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-031",
+          "description": "Given a Confluence cross-link points to another page that is also published in the portal, when the source page renders, then the link target is rewritten to the portal URL of the destination version.",
+          "testable": true
+        },
+        {
+          "id": "AC-032",
+          "description": "Given a Confluence cross-link points to a page that is not published (not allow-listed, not approved, or unpublished), when the source page renders, then the link is rendered as inert text with a 'not available' tooltip rather than a live link.",
+          "testable": true
+        },
+        {
+          "id": "AC-033",
+          "description": "Given an external link (e.g. https://example.com) in Confluence, when the page is published, then the link is preserved verbatim and opens in a new tab with rel='noopener'.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-012",
+      "reqId": "REQ-006",
+      "title": "Manual sync re-trigger",
+      "description": "As a documentation owner, I want to manually re-trigger sync of an individual page or tag set from the admin UI so that I can recover from a missed automatic sync without filing a platform ticket.",
+      "asA": "documentation owner",
+      "iWant": "to manually re-trigger sync of an individual page or tag set from the admin UI",
+      "soThat": "I can recover from a missed automatic sync without filing a platform ticket",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-034",
+          "description": "Given a doc owner opens the admin UI and selects a page, when they click 'Re-sync this page', then the page is enqueued for the sync pipeline with priority and the action is audit-logged with their identity.",
+          "testable": true
+        },
+        {
+          "id": "AC-035",
+          "description": "Given a doc owner selects a tag set and clicks 'Re-sync tag', when the action is submitted, then every approved, allow-listed page carrying that tag is re-evaluated by the pipeline.",
+          "testable": true
+        },
+        {
+          "id": "AC-036",
+          "description": "Given a re-sync action is in progress, when the doc owner returns to the admin UI, then they see the status (queued / running / complete / failed) for each enqueued page.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-013",
+      "reqId": "REQ-007",
+      "title": "Unpublish with audit reason",
+      "description": "As a documentation owner, I want to unpublish a page from the portal without deleting it from Confluence, supplying a reason so that I can quickly remove a page that was published in error and keep an auditable record.",
+      "asA": "documentation owner",
+      "iWant": "to unpublish a page from the portal without deleting it from Confluence, supplying a reason",
+      "soThat": "I can quickly remove a page that was published in error and keep an auditable record",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-037",
+          "description": "Given a doc owner selects a published page and clicks 'Unpublish', when they supply a non-empty reason and confirm, then the page is removed from portal browse and search within 60 seconds and the action is audit-logged with the supplied reason.",
+          "testable": true
+        },
+        {
+          "id": "AC-038",
+          "description": "Given a page has been unpublished, when the same page later receives an approved update in Confluence, then a re-publish requires an explicit re-publish action (it does not auto-recover) and the link between the unpublish and the re-publish is recorded in the audit trail.",
+          "testable": true
+        },
+        {
+          "id": "AC-039",
+          "description": "Given a doc owner attempts to unpublish without supplying a reason, when they submit, then the action is rejected with an inline error and no state changes.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-014",
+      "reqId": "REQ-010",
+      "title": "Unauthenticated access redirects to login",
+      "description": "As a portal visitor, I want to be redirected to a login screen whenever I try to access any portal page unauthenticated so that no portal content is reachable without a login.",
+      "asA": "portal visitor",
+      "iWant": "to be redirected to a login screen whenever I try to access any portal page unauthenticated",
+      "soThat": "no portal content is reachable without a login",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-040",
+          "description": "Given an unauthenticated visitor requests any non-login URL on docs.wsd.com, when the request is received, then the server responds with a 302 to the login page carrying a signed redirect-back parameter for the original destination.",
+          "testable": true
+        },
+        {
+          "id": "AC-041",
+          "description": "Given an unauthenticated visitor requests a portal API endpoint, when the request is received, then the server responds with 401 and a JSON error body, not HTML.",
+          "testable": true
+        },
+        {
+          "id": "AC-042",
+          "description": "Given a visitor completes login from a deep-link redirect, when authentication succeeds, then they land on the originally-requested URL rather than the portal home.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-015",
+      "reqId": "REQ-011",
+      "title": "Password plus second-factor login",
+      "description": "As a portal user, I want to log in with my password plus a second factor (TOTP or email magic link) so that my account is protected against password-only compromise.",
+      "asA": "portal user",
+      "iWant": "to log in with my password plus a second factor (TOTP or email magic link)",
+      "soThat": "my account is protected against password-only compromise",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-043",
+          "description": "Given a user with a valid password and an enrolled TOTP authenticator, when they enter both correctly, then a session is established and they are routed to their entitled home page.",
+          "testable": true
+        },
+        {
+          "id": "AC-044",
+          "description": "Given a user submits a valid password but no second factor is configured for their account, when login proceeds, then the system offers a one-time email magic-link as the second factor and blocks session establishment until it is consumed.",
+          "testable": true
+        },
+        {
+          "id": "AC-045",
+          "description": "Given a user submits a valid password but an incorrect or expired TOTP code, when they submit, then the login is rejected with a generic error message (no information about which factor failed) and the attempt is rate-limited.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-016",
+      "reqId": "REQ-011",
+      "title": "Session lifecycle",
+      "description": "As a portal user, I want to have my session managed with HTTP-only Secure cookies, configurable timeout, and idempotent logout so that stolen cookies and stale tabs are not a path to account compromise.",
+      "asA": "portal user",
+      "iWant": "to have my session managed with HTTP-only Secure cookies, configurable timeout, and idempotent logout",
+      "soThat": "stolen cookies and stale tabs are not a path to account compromise",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-046",
+          "description": "Given a successful login, when the session cookie is set, then it has the Secure, HttpOnly, and SameSite=Strict attributes and is bound to the docs.wsd.com domain.",
+          "testable": true
+        },
+        {
+          "id": "AC-047",
+          "description": "Given a session has been idle longer than the configured timeout, when the user issues any request, then the session is invalidated server-side and they are redirected to login.",
+          "testable": true
+        },
+        {
+          "id": "AC-048",
+          "description": "Given a user clicks 'Log out', when the action is processed, then the session is invalidated server-side and the cookie is cleared client-side; repeated logout requests have no additional effect (idempotent).",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-017",
+      "reqId": "REQ-011",
+      "title": "Rate limiting and lockout",
+      "description": "As a platform operator, I want to have password and second-factor brute-force attempts rate-limited and locked out so that credential stuffing campaigns are slowed and detectable.",
+      "asA": "platform operator",
+      "iWant": "to have password and second-factor brute-force attempts rate-limited and locked out",
+      "soThat": "credential stuffing campaigns are slowed and detectable",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-049",
+          "description": "Given more than 5 failed login attempts for a single user identifier within 10 minutes, when the next attempt arrives, then the attempt is rejected with a generic error and the user receives an email notification of the lockout.",
+          "testable": true
+        },
+        {
+          "id": "AC-050",
+          "description": "Given a locked account, when the lockout window (configurable, default 15 minutes) elapses, then the lockout is lifted and the user may try again.",
+          "testable": true
+        },
+        {
+          "id": "AC-051",
+          "description": "Given a sustained pattern of failed logins across many user identifiers from a single IP, when the IP threshold is exceeded, then requests from that IP are 429-throttled for a configurable cooldown and the event is alerted to security.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-018",
+      "reqId": "REQ-012",
+      "title": "Data-layer tenant scoping",
+      "description": "As a portal user, I want to only see documents scoped to my client tenant, even under direct URL access so that no UI manipulation or API guessing can reveal another client's documents.",
+      "asA": "portal user",
+      "iWant": "to only see documents scoped to my client tenant, even under direct URL access",
+      "soThat": "no UI manipulation or API guessing can reveal another client's documents",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-052",
+          "description": "Given an authenticated user whose tenant is 'acme', when they request a document URL whose scope is 'beta' (another tenant), then the response is 404 and the lookup is audit-logged as a cross-tenant attempt.",
+          "testable": true
+        },
+        {
+          "id": "AC-053",
+          "description": "Given an automated multi-tenant isolation test suite, when it runs on every release, then it asserts that every read endpoint enforces tenant scoping at the data-access layer (no relying on UI filtering).",
+          "testable": true
+        },
+        {
+          "id": "AC-054",
+          "description": "Given a user views a 'shared' document, when their tenant is resolved, then the access is permitted regardless of tenant; shared scope is the only public scope across tenants.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-019",
+      "reqId": "REQ-013",
+      "title": "Shared document visibility",
+      "description": "As a documentation owner, I want to mark a Confluence page as 'shared' so it appears to every authenticated client tenant so that common product documentation is available to all clients without duplication.",
+      "asA": "documentation owner",
+      "iWant": "to mark a Confluence page as 'shared' so it appears to every authenticated client tenant",
+      "soThat": "common product documentation is available to all clients without duplication",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-055",
+          "description": "Given a Confluence page carries the configured 'shared' label, when it is published, then the document is visible to every authenticated user across all client tenants.",
+          "testable": true
+        },
+        {
+          "id": "AC-056",
+          "description": "Given a previously-shared page has its 'shared' label removed, when the next sync runs, then the page is removed from all tenants except those explicitly named in client-specific scoping.",
+          "testable": true
+        },
+        {
+          "id": "AC-057",
+          "description": "Given a 'shared' page is unpublished, when the unpublish completes, then it disappears from every tenant's browse, search, and notification feeds.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-020",
+      "reqId": "REQ-013",
+      "title": "Client-specific document visibility",
+      "description": "As a documentation owner, I want to mark a Confluence page as scoped to one or more named client tenants so that client-specific content (runbooks, integration secrets, commercial annexes) only reaches its intended audience.",
+      "asA": "documentation owner",
+      "iWant": "to mark a Confluence page as scoped to one or more named client tenants",
+      "soThat": "client-specific content (runbooks, integration secrets, commercial annexes) only reaches its intended audience",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-058",
+          "description": "Given a Confluence page carries one or more client-scope labels (e.g. 'client:acme'), when it is published, then the document is visible only to users whose tenant is one of the named clients.",
+          "testable": true
+        },
+        {
+          "id": "AC-059",
+          "description": "Given a user whose tenant is not in the page's client-scope list, when they access search or browse, then the page is omitted from results and a direct URL returns 404 (not 403, to avoid leaking existence).",
+          "testable": true
+        },
+        {
+          "id": "AC-060",
+          "description": "Given a documentation owner attempts to scope a page to a non-existent tenant, when the page syncs, then the publish is rejected with a clear error referencing the unknown tenant ID.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-021",
+      "reqId": "REQ-014",
+      "title": "Client-admin invites user",
+      "description": "As a client admin, I want to invite a new user to my client tenant by email so that I can onboard my own team without contacting WSD support.",
+      "asA": "client admin",
+      "iWant": "to invite a new user to my client tenant by email",
+      "soThat": "I can onboard my own team without contacting WSD support",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-061",
+          "description": "Given a client admin opens the user-management page and submits an invite for a valid email and role, when the form is submitted, then an invitation email is sent to the recipient with a single-use, time-limited acceptance link.",
+          "testable": true
+        },
+        {
+          "id": "AC-062",
+          "description": "Given an invited user clicks the acceptance link before it expires, when they set a password and enroll a second factor, then their account is created in the inviting admin's tenant with the assigned role.",
+          "testable": true
+        },
+        {
+          "id": "AC-063",
+          "description": "Given a client admin attempts to invite a user with a role outside their tenant's allowed role set, when they submit, then the action is rejected with an inline error and the attempt is audit-logged.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-022",
+      "reqId": "REQ-014",
+      "title": "Client-admin disables user",
+      "description": "As a client admin, I want to disable a user in my client tenant without deleting their audit history so that I can remove access immediately while keeping a record of what they did.",
+      "asA": "client admin",
+      "iWant": "to disable a user in my client tenant without deleting their audit history",
+      "soThat": "I can remove access immediately while keeping a record of what they did",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-064",
+          "description": "Given a client admin selects a user in their tenant and clicks 'Disable', when they confirm, then the user's sessions are terminated within 60 seconds and subsequent logins are blocked, while the audit trail of that user's actions is preserved.",
+          "testable": true
+        },
+        {
+          "id": "AC-065",
+          "description": "Given a disabled user attempts to log in, when they submit credentials, then login is rejected with a generic message and the attempt is audit-logged.",
+          "testable": true
+        },
+        {
+          "id": "AC-066",
+          "description": "Given a client admin attempts to disable a user from a different tenant, when they submit, then the action is rejected with 403 and the attempt is audit-logged.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-023",
+      "reqId": "REQ-014",
+      "title": "Client-admin removes user",
+      "description": "As a client admin, I want to remove a user from my client tenant so that I can completely deprovision team members who leave my company.",
+      "asA": "client admin",
+      "iWant": "to remove a user from my client tenant",
+      "soThat": "I can completely deprovision team members who leave my company",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-067",
+          "description": "Given a client admin selects a user and clicks 'Remove', when they confirm with a typed confirmation, then the user record is anonymised (PII fields hashed/erased) and the user can no longer authenticate.",
+          "testable": true
+        },
+        {
+          "id": "AC-068",
+          "description": "Given a removed user's audit history exists, when they are removed, then the audit log is preserved but their displayable identity becomes 'Removed user (hash)' to satisfy data-protection while keeping accountability.",
+          "testable": true
+        },
+        {
+          "id": "AC-069",
+          "description": "Given a client admin attempts to remove the last admin in their tenant, when they submit, then the action is blocked with an error message instructing them to promote another admin first.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-024",
+      "reqId": "REQ-015",
+      "title": "Enterprise SSO",
+      "description": "As a enterprise client, I want to log in via my company's SAML 2.0 or OIDC identity provider so that I can use existing SSO and MFA infrastructure instead of a separate password.",
+      "asA": "enterprise client",
+      "iWant": "to log in via my company's SAML 2.0 or OIDC identity provider",
+      "soThat": "I can use existing SSO and MFA infrastructure instead of a separate password",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-070",
+          "description": "Given a tenant configured for SSO, when a user from that tenant lands on the login page, then they are presented with an 'SSO Login' button that initiates the configured SAML 2.0 or OIDC flow.",
+          "testable": true
+        },
+        {
+          "id": "AC-071",
+          "description": "Given a successful SSO assertion with a valid email and tenant claim, when the assertion is consumed, then a session is established with the role mapped from the assertion's group claim.",
+          "testable": true
+        },
+        {
+          "id": "AC-072",
+          "description": "Given a tenant has SSO enabled, when a user from that tenant attempts password+TOTP login, then the password login is disabled for their tenant and they are redirected to the SSO flow.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-025",
+      "reqId": "REQ-016",
+      "title": "Audit log of authentication events",
+      "description": "As a security analyst, I want to query authentication events from an immutable audit log so that I can investigate suspicious access patterns and prove compliance.",
+      "asA": "security analyst",
+      "iWant": "to query authentication events from an immutable audit log",
+      "soThat": "I can investigate suspicious access patterns and prove compliance",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-073",
+          "description": "Given any login attempt (success or failure), when it completes, then an audit entry is written containing user identifier, tenant, IP, user agent, factor used, outcome, and timestamp.",
+          "testable": true
+        },
+        {
+          "id": "AC-074",
+          "description": "Given an account lockout or rate-limit trigger, when it fires, then a discrete audit entry is written distinct from individual login attempts.",
+          "testable": true
+        },
+        {
+          "id": "AC-075",
+          "description": "Given a security analyst issues a query for authentication events filtered by user or tenant or IP within a date range, when the query runs, then results are returned within 5 seconds at p95 for the last 90 days.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-026",
+      "reqId": "REQ-016",
+      "title": "Audit log of document views",
+      "description": "As a security analyst, I want to query every document view event from the audit log so that I can prove which client tenant saw which document version at which time.",
+      "asA": "security analyst",
+      "iWant": "to query every document view event from the audit log",
+      "soThat": "I can prove which client tenant saw which document version at which time",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-076",
+          "description": "Given an authenticated user opens a document page, when the page is served, then an audit entry is written with user identifier, tenant, document ID, version ID, and timestamp.",
+          "testable": true
+        },
+        {
+          "id": "AC-077",
+          "description": "Given a search request that returns titles, when the response is served, then an audit entry records the search query (or its hash if PII concern), the user, and the IDs of returned documents.",
+          "testable": true
+        },
+        {
+          "id": "AC-078",
+          "description": "Given the audit log retains document-view events \u2265 12 months, when a security analyst queries the log for a specific document and date range, then results are returned within the retention window.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-027",
+      "reqId": "REQ-016",
+      "title": "Audit log of administrative actions",
+      "description": "As a security analyst, I want to query administrative actions from the audit log so that I can prove who changed scoping, who unpublished, and who altered AI review decisions.",
+      "asA": "security analyst",
+      "iWant": "to query administrative actions from the audit log",
+      "soThat": "I can prove who changed scoping, who unpublished, and who altered AI review decisions",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-079",
+          "description": "Given any admin action (invite, role change, scope change, unpublish, manual sync re-trigger, AI review decision), when it completes, then an audit entry captures the actor, target, action type, before/after values where applicable, and timestamp.",
+          "testable": true
+        },
+        {
+          "id": "AC-080",
+          "description": "Given an AI review decision (ignore / acknowledge / block), when the reviewer submits it, then an audit entry records the reviewer identity, the page version, the finding, and the chosen action.",
+          "testable": true
+        },
+        {
+          "id": "AC-081",
+          "description": "Given an attempt to alter an existing audit entry, when the write is issued at any layer, then the write is rejected and the rejection itself is logged.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-028",
+      "reqId": "REQ-020",
+      "title": "Browse by product and category",
+      "description": "As a client end user, I want to browse the portal organised by product and guide category so that I can find the documentation for the product I am integrating with.",
+      "asA": "client end user",
+      "iWant": "to browse the portal organised by product and guide category",
+      "soThat": "I can find the documentation for the product I am integrating with",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-082",
+          "description": "Given an authenticated user lands on the portal home, when the page renders, then the navigation shows a list of products derived from Confluence labels, each with its guide categories beneath it.",
+          "testable": true
+        },
+        {
+          "id": "AC-083",
+          "description": "Given the same set of source labels, when navigation is rendered for two different users at the same time, then the resulting grouping is identical (deterministic).",
+          "testable": true
+        },
+        {
+          "id": "AC-084",
+          "description": "Given a user has no entitled documents under a product (due to scoping), when navigation renders, then that product is omitted from their navigation rather than shown empty.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-029",
+      "reqId": "REQ-021",
+      "title": "Latest version is the default view",
+      "description": "As a client end user, I want to land on the latest published version of a document by default so that I never have to guess whether I am reading the current version.",
+      "asA": "client end user",
+      "iWant": "to land on the latest published version of a document by default",
+      "soThat": "I never have to guess whether I am reading the current version",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-085",
+          "description": "Given a user opens a document URL without an explicit version suffix, when the page renders, then the latest published version is shown with a 'Latest' badge and the publish timestamp.",
+          "testable": true
+        },
+        {
+          "id": "AC-086",
+          "description": "Given a document has been updated since the user's last visit, when they open it, then the page is rendered from the latest version with no cached older version surfaced.",
+          "testable": true
+        },
+        {
+          "id": "AC-087",
+          "description": "Given the latest version differs from the version the user was last reading, when the page renders, then a non-blocking banner offers a link to the diff against the previous version they viewed.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-030",
+      "reqId": "REQ-022",
+      "title": "View previous version",
+      "description": "As a client end user, I want to open any previous published version of a document I have access to so that I can refer back to documentation that matches an older integration.",
+      "asA": "client end user",
+      "iWant": "to open any previous published version of a document I have access to",
+      "soThat": "I can refer back to documentation that matches an older integration",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-088",
+          "description": "Given a user opens the version history panel, when they click a previous version row, then the document re-renders at that version with a clear 'Viewing older version' banner.",
+          "testable": true
+        },
+        {
+          "id": "AC-089",
+          "description": "Given a user is viewing an older version, when they click 'Back to latest', then the page re-renders at the latest version and the banner clears.",
+          "testable": true
+        },
+        {
+          "id": "AC-090",
+          "description": "Given an older version exists but the document is unpublished, when a user attempts to view it, then they receive a 'not available' message even if they have the direct URL.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-031",
+      "reqId": "REQ-022",
+      "title": "Diff previous vs latest",
+      "description": "As a client end user, I want to diff a previous version against the latest so that I can see exactly what changed between integrations.",
+      "asA": "client end user",
+      "iWant": "to diff a previous version against the latest",
+      "soThat": "I can see exactly what changed between integrations",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-091",
+          "description": "Given two version IDs of the same document the user is entitled to, when the user opens the diff view, then the rendered diff highlights added content in green, removed content in red, and modified blocks in yellow at the block level.",
+          "testable": true
+        },
+        {
+          "id": "AC-092",
+          "description": "Given a diff is open, when the user toggles between 'side-by-side' and 'inline' modes, then both representations show the same diff data without re-fetching.",
+          "testable": true
+        },
+        {
+          "id": "AC-093",
+          "description": "Given a diff cannot be computed (e.g. one of the versions is missing), when the view is requested, then a graceful error is shown rather than an empty page.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-032",
+      "reqId": "REQ-023",
+      "title": "Per-page PDF download",
+      "description": "As a client end user, I want to download the currently-viewed document version as a styled PDF so that I can read offline and distribute internally.",
+      "asA": "client end user",
+      "iWant": "to download the currently-viewed document version as a styled PDF",
+      "soThat": "I can read offline and distribute internally",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-094",
+          "description": "Given a user clicks 'Download as PDF' on a document page, when the action completes, then a PDF is generated and downloaded that renders the same content as the on-screen page including images and code blocks.",
+          "testable": true
+        },
+        {
+          "id": "AC-095",
+          "description": "Given the generated PDF, when inspected, then its footer contains the document title, version number, publish timestamp, and the requesting user's tenant identity (for audit traceability).",
+          "testable": true
+        },
+        {
+          "id": "AC-096",
+          "description": "Given a PDF generation request fails (e.g. timeout), when the failure occurs, then the user sees a clear error toast and the failure is logged for operations to investigate.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-033",
+      "reqId": "REQ-024",
+      "title": "Full-text search",
+      "description": "As a client end user, I want to search the portal full-text and find pages by phrase, term, or product so that I can locate what I need without browsing through hierarchies.",
+      "asA": "client end user",
+      "iWant": "to search the portal full-text and find pages by phrase, term, or product",
+      "soThat": "I can locate what I need without browsing through hierarchies",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-097",
+          "description": "Given a user enters a query and submits, when results return, then matching documents are listed with title, snippet showing the matched terms in context, product, and last-updated timestamp, ranked by relevance.",
+          "testable": true
+        },
+        {
+          "id": "AC-098",
+          "description": "Given a query returns more than 20 results, when the user reaches the bottom, then additional results page in (or scroll-paginate) without a full page reload.",
+          "testable": true
+        },
+        {
+          "id": "AC-099",
+          "description": "Given a search query is submitted, when the search runs, then p95 response time is < 1 second for the user's entitled corpus.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-034",
+      "reqId": "REQ-024",
+      "title": "Search respects scope",
+      "description": "As a client end user, I want to never see search results that include documents I am not entitled to read so that the search bar cannot be used to discover the existence of out-of-scope documents.",
+      "asA": "client end user",
+      "iWant": "to never see search results that include documents I am not entitled to read",
+      "soThat": "the search bar cannot be used to discover the existence of out-of-scope documents",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-100",
+          "description": "Given a user submits a query that would match a document outside their entitled scope, when results are computed, then the document is excluded from results entirely (not surfaced and then hidden).",
+          "testable": true
+        },
+        {
+          "id": "AC-101",
+          "description": "Given a user submits a query that matches no entitled documents, when results render, then the response is 'No results' rather than counts or hints of out-of-scope hits.",
+          "testable": true
+        },
+        {
+          "id": "AC-102",
+          "description": "Given an automated multi-tenant search isolation test, when it runs on every release, then it asserts a tenant A user querying for a known tenant-B-only title returns zero results.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-035",
+      "reqId": "REQ-025",
+      "title": "Per-user last-visited tracking",
+      "description": "As a client end user, I want to have my last-visited timestamp per page tracked so that the AI change-summary feature can show me what is new since I last looked.",
+      "asA": "client end user",
+      "iWant": "to have my last-visited timestamp per page tracked",
+      "soThat": "the AI change-summary feature can show me what is new since I last looked",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-103",
+          "description": "Given an authenticated user opens a document page, when the page renders, then the user's last-visited timestamp for that document is updated to the current time, scoped to that user.",
+          "testable": true
+        },
+        {
+          "id": "AC-104",
+          "description": "Given a user opens the portal landing page, when 'Since your last visit' is computed (REQ-051), then the computation uses the per-user last-visited timestamps to determine what is new.",
+          "testable": true
+        },
+        {
+          "id": "AC-105",
+          "description": "Given a user requests that their tracking data be deleted (data-protection right), when the request is honoured, then the per-user last-visited records for that user are erased within the configured timeframe and the deletion is audit-logged.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-036",
+      "reqId": "REQ-030",
+      "title": "Digest email notifications",
+      "description": "As a client end user, I want to receive an email when documentation I am entitled to has changed, on a digest cadence I choose so that I find out about relevant changes without checking the portal manually.",
+      "asA": "client end user",
+      "iWant": "to receive an email when documentation I am entitled to has changed, on a digest cadence I choose",
+      "soThat": "I find out about relevant changes without checking the portal manually",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-106",
+          "description": "Given a user has subscribed to immediate notifications, when an entitled document is published, then they receive an email within 15 minutes of publish with a deep link to the changed page.",
+          "testable": true
+        },
+        {
+          "id": "AC-107",
+          "description": "Given a user has subscribed to a daily or weekly digest, when the configured cadence elapses, then they receive a single email summarising all entitled changes in that window (or no email if there are none).",
+          "testable": true
+        },
+        {
+          "id": "AC-108",
+          "description": "Given a user is unsubscribed from notifications, when entitled documents change, then they receive no email and the unsubscribed state is honoured across all cadences.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-037",
+      "reqId": "REQ-030",
+      "title": "Notifications respect scope",
+      "description": "As a client end user, I want to never receive an email about a page I am not entitled to read so that notifications cannot leak the existence of out-of-scope content.",
+      "asA": "client end user",
+      "iWant": "to never receive an email about a page I am not entitled to read",
+      "soThat": "notifications cannot leak the existence of out-of-scope content",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-109",
+          "description": "Given a notification batch is being assembled, when a candidate page is being evaluated for inclusion in a user's email, then the user's tenant entitlement is re-evaluated at send time (not just at subscribe time).",
+          "testable": true
+        },
+        {
+          "id": "AC-110",
+          "description": "Given a user's entitlement to a document is revoked between subscribe time and send time, when the email is sent, then the document is excluded from that user's email.",
+          "testable": true
+        },
+        {
+          "id": "AC-111",
+          "description": "Given an automated email-scope test, when it runs on every release, then it asserts no email contains a deep link to a document the recipient cannot access.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-038",
+      "reqId": "REQ-031",
+      "title": "Email contains release highlights",
+      "description": "As a client end user, I want to read a release-highlights summary in the notification email before clicking through to the portal so that I can decide if a change needs my attention without opening the page.",
+      "asA": "client end user",
+      "iWant": "to read a release-highlights summary in the notification email before clicking through to the portal",
+      "soThat": "I can decide if a change needs my attention without opening the page",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-112",
+          "description": "Given a notification email is rendered, when the user opens it, then for each changed page the email shows the page title, a 1\u20133 sentence AI-generated highlight summary (REQ-053), and a deep link to the page on the portal.",
+          "testable": true
+        },
+        {
+          "id": "AC-113",
+          "description": "Given the digest contains more than 5 changed pages, when the email is rendered, then only the top 5 are shown inline with a 'view full list' link to the portal that takes the user to a filtered changes view.",
+          "testable": true
+        },
+        {
+          "id": "AC-114",
+          "description": "Given a user clicks a deep link in the email, when they land on the portal, then the URL preserves the source = 'email-digest' parameter for analytics without exposing the user's email.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-039",
+      "reqId": "REQ-032",
+      "title": "Manage notification preferences",
+      "description": "As a client end user, I want to manage my own notification preferences from a profile page so that I do not have to contact WSD support to change my cadence or unsubscribe.",
+      "asA": "client end user",
+      "iWant": "to manage my own notification preferences from a profile page",
+      "soThat": "I do not have to contact WSD support to change my cadence or unsubscribe",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-115",
+          "description": "Given a user opens the profile / preferences page, when it renders, then they see their current cadence (immediate / daily / weekly / off) and per-product subscription toggles, all editable.",
+          "testable": true
+        },
+        {
+          "id": "AC-116",
+          "description": "Given a user changes their cadence or product subscriptions and saves, when the next eligible notification would fire, then the new preferences take effect; the change is also reflected in subsequent emails' unsubscribe footer.",
+          "testable": true
+        },
+        {
+          "id": "AC-117",
+          "description": "Given a user uses the one-click 'unsubscribe' link in any email footer, when they confirm, then their cadence is set to 'off' for that product (or globally if the email was a cross-product digest) without requiring them to log in.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-040",
+      "reqId": "REQ-040",
+      "title": "AI detects secrets and credentials",
+      "description": "As a publishing pipeline, I want to run the AI document-review pass and detect secrets, API keys, and credentials before publish so that secret material never reaches the client portal.",
+      "asA": "publishing pipeline",
+      "iWant": "to run the AI document-review pass and detect secrets, API keys, and credentials before publish",
+      "soThat": "secret material never reaches the client portal",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-118",
+          "description": "Given a candidate page contains a string matching a high-entropy secret pattern (e.g. AWS access key, generic API key shape), when the AI review runs, then the finding is raised with category = 'secret', severity = 'high', and the matched span is recorded.",
+          "testable": true
+        },
+        {
+          "id": "AC-119",
+          "description": "Given the AI review is uncertain (confidence below threshold) about a candidate secret, when the review completes, then the finding is raised with severity = 'medium' rather than ignored, and routed to a reviewer.",
+          "testable": true
+        },
+        {
+          "id": "AC-120",
+          "description": "Given the AI review detects no secrets, when the review completes, then a 'no-secret-findings' result is recorded for the page version and the page proceeds to the next gate.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-041",
+      "reqId": "REQ-040",
+      "title": "AI detects internal URLs, Jira links, and internal emails",
+      "description": "As a publishing pipeline, I want to detect internal-only URLs, Jira/internal-ticket links, and internal employee email addresses so that no internal references leak to clients.",
+      "asA": "publishing pipeline",
+      "iWant": "to detect internal-only URLs, Jira/internal-ticket links, and internal employee email addresses",
+      "soThat": "no internal references leak to clients",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-121",
+          "description": "Given a candidate page contains a URL matching the configured internal-domain allow-list (e.g. ending in .internal.wsd.com), when review runs, then a finding is raised with category = 'internal-url', severity = 'high'.",
+          "testable": true
+        },
+        {
+          "id": "AC-122",
+          "description": "Given a candidate page contains a link or reference matching the Jira / internal-ticket URL patterns, when review runs, then a finding is raised with category = 'internal-ticket', severity = 'high'.",
+          "testable": true
+        },
+        {
+          "id": "AC-123",
+          "description": "Given a candidate page contains an email address whose domain matches the configured internal-email allow-list, when review runs, then a finding is raised with category = 'internal-email', severity = 'high' for staff inboxes and 'medium' for shared/team inboxes.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-042",
+      "reqId": "REQ-040",
+      "title": "AI detects missing content",
+      "description": "As a publishing pipeline, I want to flag pages with structurally missing content such as empty sections or placeholder strings so that clients never read documentation that says 'TODO' or 'lorem ipsum'.",
+      "asA": "publishing pipeline",
+      "iWant": "to flag pages with structurally missing content such as empty sections or placeholder strings",
+      "soThat": "clients never read documentation that says 'TODO' or 'lorem ipsum'",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-124",
+          "description": "Given a candidate page contains placeholder strings (case-insensitive 'TODO', 'TBD', 'FIXME', 'lorem ipsum', 'xxx'), when review runs, then a finding is raised with category = 'missing-content', severity = 'medium'.",
+          "testable": true
+        },
+        {
+          "id": "AC-125",
+          "description": "Given a candidate page contains a heading immediately followed by another heading at the same or deeper level (empty section), when review runs, then a finding is raised with category = 'empty-section', severity = 'low'.",
+          "testable": true
+        },
+        {
+          "id": "AC-126",
+          "description": "Given a candidate page is shorter than a configurable minimum (default 100 words excluding boilerplate), when review runs, then a finding is raised with category = 'stub', severity = 'low'.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-043",
+      "reqId": "REQ-041",
+      "title": "Hard block on high-severity findings",
+      "description": "As a publishing pipeline, I want to hard-block publishing of any page that has an unresolved high-severity AI finding so that screening cannot be bypassed by deadline pressure.",
+      "asA": "publishing pipeline",
+      "iWant": "to hard-block publishing of any page that has an unresolved high-severity AI finding",
+      "soThat": "screening cannot be bypassed by deadline pressure",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-127",
+          "description": "Given a page has at least one open finding with severity = 'high', when the publishing pipeline reaches the publish gate, then publish is rejected and the page state becomes 'blocked-on-review' with the open findings listed.",
+          "testable": true
+        },
+        {
+          "id": "AC-128",
+          "description": "Given all high-severity findings on a page are either reviewer-confirmed false positives or the page has been corrected and re-synced, when the publishing pipeline reaches the publish gate, then publish proceeds.",
+          "testable": true
+        },
+        {
+          "id": "AC-129",
+          "description": "Given a doc owner attempts to publish a page with open high-severity findings via the manual re-trigger API, when the request is processed, then it is rejected and the bypass attempt is audit-logged.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-044",
+      "reqId": "REQ-042",
+      "title": "Reviewer sees findings in context",
+      "description": "As a publishing reviewer, I want to see AI findings displayed in context with the matched span highlighted so that I can evaluate each finding without having to re-read the whole page.",
+      "asA": "publishing reviewer",
+      "iWant": "to see AI findings displayed in context with the matched span highlighted",
+      "soThat": "I can evaluate each finding without having to re-read the whole page",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-130",
+          "description": "Given a reviewer opens a page that has AI findings, when the review panel renders, then the page content is shown with each finding's matched span highlighted, colour-coded by severity.",
+          "testable": true
+        },
+        {
+          "id": "AC-131",
+          "description": "Given a reviewer clicks a finding in the side list, when the click is registered, then the page scrolls so the matched span is centred and focused.",
+          "testable": true
+        },
+        {
+          "id": "AC-132",
+          "description": "Given the matched span has been removed in a newer Confluence revision after the finding was raised, when the reviewer opens the panel, then the finding is marked 'stale' rather than shown against missing content.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-045",
+      "reqId": "REQ-042",
+      "title": "Reviewer triages each finding",
+      "description": "As a publishing reviewer, I want to triage each AI finding by choosing ignore / acknowledge / block, with my decision audit-logged so that review decisions are traceable and defensible.",
+      "asA": "publishing reviewer",
+      "iWant": "to triage each AI finding by choosing ignore / acknowledge / block, with my decision audit-logged",
+      "soThat": "review decisions are traceable and defensible",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-133",
+          "description": "Given a finding is open, when a reviewer selects 'ignore', then the finding is marked closed-as-false-positive, the reviewer identity and timestamp are audit-logged, and (if it was the last high-severity blocker) the page becomes publishable.",
+          "testable": true
+        },
+        {
+          "id": "AC-134",
+          "description": "Given a finding is open, when a reviewer selects 'acknowledge' on a non-high-severity finding, then the finding is marked closed-as-acknowledged and the page becomes publishable.",
+          "testable": true
+        },
+        {
+          "id": "AC-135",
+          "description": "Given a finding is open, when a reviewer selects 'block', then the page state becomes 'blocked-pending-source-fix' until the source page is corrected and re-synced (re-syncing creates a new review pass).",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-046",
+      "reqId": "REQ-050",
+      "title": "Generate AI release notes",
+      "description": "As a publishing pipeline, I want to generate AI release notes covering What's New, Breaking Changes, and Recommended Actions when a page changes so that release-note authoring stops being a manual cost on every release.",
+      "asA": "publishing pipeline",
+      "iWant": "to generate AI release notes covering What's New, Breaking Changes, and Recommended Actions when a page changes",
+      "soThat": "release-note authoring stops being a manual cost on every release",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-136",
+          "description": "Given a page is being published as a new version, when release-note generation runs, then it produces three sections \u2014 What's New, Breaking Changes, Recommended Actions \u2014 based on the diff against the prior published version.",
+          "testable": true
+        },
+        {
+          "id": "AC-137",
+          "description": "Given a page has no prior published version, when release-note generation runs, then What's New describes the initial publication and the other two sections render 'None for this release'.",
+          "testable": true
+        },
+        {
+          "id": "AC-138",
+          "description": "Given release-note generation fails (AI provider error), when the failure occurs, then the page enters 'release-notes-pending' state, an alert is raised, and the publish does not proceed until release notes exist or are explicitly waived.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-047",
+      "reqId": "REQ-050",
+      "title": "Reviewer approves release notes",
+      "description": "As a publishing reviewer, I want to approve AI-generated release notes before clients see them so that no AI-authored copy reaches clients without a human gate.",
+      "asA": "publishing reviewer",
+      "iWant": "to approve AI-generated release notes before clients see them",
+      "soThat": "no AI-authored copy reaches clients without a human gate",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-139",
+          "description": "Given release notes have been generated, when the reviewer opens the review panel, then they see the three sections side-by-side with the diff that produced them.",
+          "testable": true
+        },
+        {
+          "id": "AC-140",
+          "description": "Given a reviewer clicks 'Approve', when the action is recorded, then the release notes become the published artefact for that version and the approval is audit-logged.",
+          "testable": true
+        },
+        {
+          "id": "AC-141",
+          "description": "Given a reviewer takes no action longer than the configured SLA (default 24 hours for high-severity diffs, 72 hours otherwise), when the SLA elapses, then a reminder notification is sent and the timeout is surfaced on the dashboard.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-048",
+      "reqId": "REQ-051",
+      "title": "Per-client since-last-visit summary",
+      "description": "As a client end user, I want to see a per-client 'Since your last visit' summary on the portal landing page so that I orient quickly to what changed without scanning every product.",
+      "asA": "client end user",
+      "iWant": "to see a per-client 'Since your last visit' summary on the portal landing page",
+      "soThat": "I orient quickly to what changed without scanning every product",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-142",
+          "description": "Given an authenticated user opens the portal landing page, when the page renders, then a 'Since your last visit' block shows an AI-generated paragraph summarising the entitled pages that have changed since their last view per page.",
+          "testable": true
+        },
+        {
+          "id": "AC-143",
+          "description": "Given a user has no changes since their last visit, when the landing page renders, then the block shows 'You are up to date' rather than fabricating change content.",
+          "testable": true
+        },
+        {
+          "id": "AC-144",
+          "description": "Given the underlying change set has not changed since the last render, when the user reloads the landing page, then the summary is served from cache rather than regenerated.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-049",
+      "reqId": "REQ-052",
+      "title": "Reviewer can regenerate, edit, or discard release notes",
+      "description": "As a publishing reviewer, I want to regenerate, edit inline, or discard any AI-generated release-notes block so that I can quickly correct or override AI output without leaving the review UI.",
+      "asA": "publishing reviewer",
+      "iWant": "to regenerate, edit inline, or discard any AI-generated release-notes block",
+      "soThat": "I can quickly correct or override AI output without leaving the review UI",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-145",
+          "description": "Given a reviewer clicks 'Regenerate' on a release-notes block, when the action runs, then a new draft replaces the current one (the previous draft remains accessible in the revision side-panel) and the regeneration is audit-logged.",
+          "testable": true
+        },
+        {
+          "id": "AC-146",
+          "description": "Given a reviewer edits a release-notes block inline and clicks save, when the save succeeds, then their edits are persisted and any subsequent regeneration starts from the edited text unless the reviewer explicitly discards their edits.",
+          "testable": true
+        },
+        {
+          "id": "AC-147",
+          "description": "Given a reviewer clicks 'Discard', when they confirm, then the release-notes block for this version is cleared and the publish gate now requires either an empty-but-approved or a regenerated release-notes block.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-050",
+      "reqId": "REQ-053",
+      "title": "AI client-notification summaries",
+      "description": "As a notification pipeline, I want to insert AI-generated per-client concise summaries into each outgoing email so that notification emails are short and tailored, not noisy.",
+      "asA": "notification pipeline",
+      "iWant": "to insert AI-generated per-client concise summaries into each outgoing email",
+      "soThat": "notification emails are short and tailored, not noisy",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-148",
+          "description": "Given a notification email is being assembled for a user, when each changed page is processed, then a concise AI-generated summary (\u2264 30 words) is generated per page based on the changes the user is entitled to see.",
+          "testable": true
+        },
+        {
+          "id": "AC-149",
+          "description": "Given two users in the same tenant subscribe to the same digest, when their emails are assembled, then each user receives a summary generated against their per-user entitled change set (they may differ if entitlements differ).",
+          "testable": true
+        },
+        {
+          "id": "AC-150",
+          "description": "Given AI summary generation fails for a page, when the failure occurs, then the email falls back to the page title plus 'View changes on portal' without sending a broken email.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-051",
+      "reqId": "REQ-053",
+      "title": "Reviewer approves breaking-change notification summary",
+      "description": "As a publishing reviewer, I want to approve an AI notification summary before it sends when the underlying change is flagged as breaking so that breaking-change notifications cannot be auto-sent without human sign-off.",
+      "asA": "publishing reviewer",
+      "iWant": "to approve an AI notification summary before it sends when the underlying change is flagged as breaking",
+      "soThat": "breaking-change notifications cannot be auto-sent without human sign-off",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-151",
+          "description": "Given a release-notes pass has flagged at least one entry under 'Breaking Changes' for a page, when the notification email is being assembled, then the email sits in 'pending-review' state and is not sent until a reviewer approves.",
+          "testable": true
+        },
+        {
+          "id": "AC-152",
+          "description": "Given a reviewer approves a pending breaking-change notification, when they click 'Approve & Send', then the email is dispatched to the digest recipients and the approval is audit-logged with reviewer identity and timestamp.",
+          "testable": true
+        },
+        {
+          "id": "AC-153",
+          "description": "Given a reviewer rejects a pending breaking-change notification, when they click 'Reject', then the email is not sent for that change and the rejection plus reason are audit-logged.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-052",
+      "reqId": "REQ-054",
+      "title": "AI quality scoring on publish",
+      "description": "As a documentation owner, I want to see AI-generated quality scores (completeness, readability, missing examples, missing API responses) when I publish so that I can catch documentation-quality regressions before clients do.",
+      "asA": "documentation owner",
+      "iWant": "to see AI-generated quality scores (completeness, readability, missing examples, missing API responses) when I publish",
+      "soThat": "I can catch documentation-quality regressions before clients do",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-154",
+          "description": "Given a candidate page is about to enter the publish gate, when the quality scoring step runs, then four scores in [0..1] are produced for Completeness, Readability, Missing Examples, Missing API Responses and persisted with the page version.",
+          "testable": true
+        },
+        {
+          "id": "AC-155",
+          "description": "Given a score is below the warning threshold for any dimension, when the doc owner views the publish summary, then a warning badge is shown next to the score with a short AI-generated suggestion.",
+          "testable": true
+        },
+        {
+          "id": "AC-156",
+          "description": "Given quality scoring fails (provider error), when the failure occurs, then publishing is not blocked but a 'quality-score-unavailable' marker is recorded with the version.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-053",
+      "reqId": "REQ-054",
+      "title": "Quality warning is overrideable with audit",
+      "description": "As a documentation owner, I want to override a low quality-score warning and publish anyway, with my decision recorded so that quality scoring nudges but does not gate, and I keep the final say.",
+      "asA": "documentation owner",
+      "iWant": "to override a low quality-score warning and publish anyway, with my decision recorded",
+      "soThat": "quality scoring nudges but does not gate, and I keep the final say",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-157",
+          "description": "Given a publish summary shows a low quality-score warning, when the doc owner clicks 'Publish anyway' and supplies an override reason, then publish proceeds and the override (reason + identity) is audit-logged with the version.",
+          "testable": true
+        },
+        {
+          "id": "AC-158",
+          "description": "Given a publish summary shows a low quality-score warning, when the doc owner cancels and edits the source page in Confluence, then re-syncing the page re-runs scoring and shows the new scores in a fresh publish summary.",
+          "testable": true
+        },
+        {
+          "id": "AC-159",
+          "description": "Given the published version was published under override, when a future reader views the version metadata, then the override marker is visible to internal staff (not to clients) so retro reviews can find quality-bypass cases.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-054",
+      "reqId": "REQ-055",
+      "title": "Quality trend over time",
+      "description": "As a documentation owner, I want to see the trend of quality scores over time per page so that I can spot pages that are getting worse and prioritise rewrites.",
+      "asA": "documentation owner",
+      "iWant": "to see the trend of quality scores over time per page",
+      "soThat": "I can spot pages that are getting worse and prioritise rewrites",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-160",
+          "description": "Given a page has at least three published versions, when the doc owner opens the page's quality view, then a chart is shown for each of the four dimensions over the publish history.",
+          "testable": true
+        },
+        {
+          "id": "AC-161",
+          "description": "Given a page has fewer than three published versions, when the quality view is opened, then the trend chart shows current values and a 'not enough history' notice rather than empty axes.",
+          "testable": true
+        },
+        {
+          "id": "AC-162",
+          "description": "Given quality scoring was unavailable for a particular version, when the trend is rendered, then that version is shown as a gap in the line rather than as zero.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-055",
+      "reqId": "REQ-100",
+      "title": "Portal render p95 SLA",
+      "description": "As a platform operator, I want to have portal page render p95 under 1.5 s under expected client load so that the portal feels responsive at launch and on a typical day.",
+      "asA": "platform operator",
+      "iWant": "to have portal page render p95 under 1.5 s under expected client load",
+      "soThat": "the portal feels responsive at launch and on a typical day",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-163",
+          "description": "Given the synthetic-load test runs the standard 500-user reading workload, when results are collected, then portal page render p95 measured server-side from request to last byte of HTML is < 1.5 s.",
+          "testable": true
+        },
+        {
+          "id": "AC-164",
+          "description": "Given p95 portal render exceeds 1.5 s over a rolling 15-minute window in production, when the threshold is breached, then a paging alert is fired and the deployment is auto-rolled-back if the breach started after the most recent deploy.",
+          "testable": true
+        },
+        {
+          "id": "AC-165",
+          "description": "Given the read tier is healthy, when an authenticated user opens any document page, then the first contentful paint occurs within 1 s on a representative WSD client environment baseline.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-056",
+      "reqId": "REQ-101",
+      "title": "End-to-end sync latency observability",
+      "description": "As a platform operator, I want to have sync latency observability covering Confluence approval through portal visibility, including AI review so that the 5-minute SLA is enforced and AI review latency is visible.",
+      "asA": "platform operator",
+      "iWant": "to have sync latency observability covering Confluence approval through portal visibility, including AI review",
+      "soThat": "the 5-minute SLA is enforced and AI review latency is visible",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-166",
+          "description": "Given a publish run completes successfully, when metrics are emitted, then the total end-to-end latency from approval to portal visibility is recorded, plus a sub-breakdown for AI review duration.",
+          "testable": true
+        },
+        {
+          "id": "AC-167",
+          "description": "Given p95 end-to-end latency exceeds 5 minutes OR p95 total (including AI review) exceeds 15 minutes over a rolling 15-minute window, when the threshold is breached, then a paging alert is raised.",
+          "testable": true
+        },
+        {
+          "id": "AC-168",
+          "description": "Given an operator opens the sync dashboard, when they filter by a single page, then they see per-stage timings for the most recent N publishes (configurable, default 50).",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-057",
+      "reqId": "REQ-102",
+      "title": "TLS enforced",
+      "description": "As a security engineer, I want to enforce TLS 1.2+ for all client-facing traffic so that no plaintext data ever crosses the public network.",
+      "asA": "security engineer",
+      "iWant": "to enforce TLS 1.2+ for all client-facing traffic",
+      "soThat": "no plaintext data ever crosses the public network",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-169",
+          "description": "Given a client connection is established, when the TLS handshake completes, then the negotiated protocol is TLS 1.2 or TLS 1.3 with a permitted cipher suite (no exportable, no RC4, no SHA-1).",
+          "testable": true
+        },
+        {
+          "id": "AC-170",
+          "description": "Given a client attempts a connection with TLS 1.1 or lower, when the handshake begins, then the server rejects the connection cleanly.",
+          "testable": true
+        },
+        {
+          "id": "AC-171",
+          "description": "Given the portal's TLS configuration is in production, when an external scan runs (e.g. Mozilla TLS observatory or equivalent), then the configuration achieves at minimum the 'intermediate' grade with no known-vulnerable settings.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-058",
+      "reqId": "REQ-102",
+      "title": "Data encrypted at rest",
+      "description": "As a security engineer, I want to encrypt session tokens, audit logs, AI-pipeline payloads, and other sensitive at-rest data so that even with disk or backup access, an attacker cannot read sensitive material in cleartext.",
+      "asA": "security engineer",
+      "iWant": "to encrypt session tokens, audit logs, AI-pipeline payloads, and other sensitive at-rest data",
+      "soThat": "even with disk or backup access, an attacker cannot read sensitive material in cleartext",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-172",
+          "description": "Given any data store containing session tokens, audit log entries, or AI-pipeline payloads, when data is written to disk, then it is encrypted using platform-standard KMS-managed keys.",
+          "testable": true
+        },
+        {
+          "id": "AC-173",
+          "description": "Given a KMS key rotation event, when the rotation completes, then existing data continues to be readable under the new key alias and the rotation is audit-logged.",
+          "testable": true
+        },
+        {
+          "id": "AC-174",
+          "description": "Given a verifiable security check runs (e.g. automated infra audit), when it inspects each data store, then no store is found in plaintext-at-rest configuration.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-059",
+      "reqId": "REQ-103",
+      "title": "Data-layer tenant isolation",
+      "description": "As a platform engineer, I want to enforce per-client data isolation at the data-access layer, validated by tests so that no UI bug or API guess can produce a cross-tenant data leak.",
+      "asA": "platform engineer",
+      "iWant": "to enforce per-client data isolation at the data-access layer, validated by tests",
+      "soThat": "no UI bug or API guess can produce a cross-tenant data leak",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-175",
+          "description": "Given every read or write query against tenant-scoped tables, when issued by application code, then the query carries the active tenant ID and the data layer rejects queries without it or with a tenant ID inconsistent with the authenticated session.",
+          "testable": true
+        },
+        {
+          "id": "AC-176",
+          "description": "Given the automated isolation test suite, when it runs as part of CI on every release, then for every read endpoint it asserts that requests authenticated as tenant A cannot retrieve data created as tenant B.",
+          "testable": true
+        },
+        {
+          "id": "AC-177",
+          "description": "Given a developer attempts to add a new read endpoint without tenant scoping, when CI runs, then a lint/static-analysis check fails the build with a clear message pointing to the unscoped query.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-060",
+      "reqId": "REQ-104",
+      "title": "Keyboard navigation",
+      "description": "As a client end user with assistive technology, I want to navigate the entire portal by keyboard alone, with logical focus order and visible focus rings so that I can use the portal without a pointing device.",
+      "asA": "client end user with assistive technology",
+      "iWant": "to navigate the entire portal by keyboard alone, with logical focus order and visible focus rings",
+      "soThat": "I can use the portal without a pointing device",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-178",
+          "description": "Given an authenticated user is on any portal page, when they use Tab and Shift+Tab to move focus, then every interactive control is reachable, the focus order matches the visual order, and every focused element has a visible focus indicator meeting WCAG AA contrast.",
+          "testable": true
+        },
+        {
+          "id": "AC-179",
+          "description": "Given a modal or dialog is opened (e.g. PDF generation confirmation), when it is open, then focus is trapped inside it and Escape closes it returning focus to the opener.",
+          "testable": true
+        },
+        {
+          "id": "AC-180",
+          "description": "Given an automated a11y test (e.g. axe-core) runs on every release across login, browse, read, version history, search, and PDF flows, when results are collected, then zero serious or critical violations are reported.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-061",
+      "reqId": "REQ-104",
+      "title": "Screen reader and contrast",
+      "description": "As a client end user with assistive technology, I want to use a screen reader to read documents with correct semantic structure and image alt-text so that I can consume documentation non-visually.",
+      "asA": "client end user with assistive technology",
+      "iWant": "to use a screen reader to read documents with correct semantic structure and image alt-text",
+      "soThat": "I can consume documentation non-visually",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-181",
+          "description": "Given a screen reader reads a document page, when it traverses the content, then headings are exposed with their semantic levels, lists as lists, tables with row/column headers, and images announce their alt-text.",
+          "testable": true
+        },
+        {
+          "id": "AC-182",
+          "description": "Given a colour palette change is proposed, when a contrast check runs against text/background pairs in the design tokens, then all combinations meet WCAG AA contrast ratios.",
+          "testable": true
+        },
+        {
+          "id": "AC-183",
+          "description": "Given a non-text status indicator (e.g. coloured badge), when a screen reader reaches it, then a text-equivalent label is announced (e.g. 'Status: blocked-on-review').",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-062",
+      "reqId": "REQ-105",
+      "title": "AI review fails closed",
+      "description": "As a publishing pipeline, I want to fail closed when the AI provider is unavailable rather than skipping screening so that AI-provider outages cannot become a vector for unscreened content reaching clients.",
+      "asA": "publishing pipeline",
+      "iWant": "to fail closed when the AI provider is unavailable rather than skipping screening",
+      "soThat": "AI-provider outages cannot become a vector for unscreened content reaching clients",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-184",
+          "description": "Given the AI document-review provider is unavailable (timeout, 5xx, or auth failure), when a page reaches the review step, then the page is queued in 'review-pending-provider' state and an alert is raised; the page is NOT published.",
+          "testable": true
+        },
+        {
+          "id": "AC-185",
+          "description": "Given the AI provider becomes available again, when the queued page is retried, then review proceeds and (assuming clean findings) publish completes.",
+          "testable": true
+        },
+        {
+          "id": "AC-186",
+          "description": "Given an operator attempts to bypass the review step via a configuration flag or API, when the attempt is made in production, then the action is blocked unless a documented two-person break-glass procedure is followed and recorded.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-063",
+      "reqId": "REQ-106",
+      "title": "Horizontal scaling of read tier",
+      "description": "As a platform engineer, I want to scale the portal read tier horizontally so capacity grows with client headcount so that onboarding a large client does not require an architectural rewrite.",
+      "asA": "platform engineer",
+      "iWant": "to scale the portal read tier horizontally so capacity grows with client headcount",
+      "soThat": "onboarding a large client does not require an architectural rewrite",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-187",
+          "description": "Given the portal read tier is deployed behind a load balancer, when a new read-tier instance is added, then it serves traffic within 60 seconds of becoming healthy without requiring a deploy of other tiers.",
+          "testable": true
+        },
+        {
+          "id": "AC-188",
+          "description": "Given a synthetic load doubles, when read-tier autoscaling fires, then additional instances come online and p95 render latency returns under 1.5 s within 5 minutes.",
+          "testable": true
+        },
+        {
+          "id": "AC-189",
+          "description": "Given any read-tier instance is terminated mid-request, when the request retries via the load balancer, then it succeeds on a different instance without surfacing an error to the user.",
+          "testable": true
+        }
+      ]
+    },
+    {
+      "id": "US-064",
+      "reqId": "REQ-107",
+      "title": "Audit log tamper-evident retention",
+      "description": "As a security analyst, I want to know that audit logs cannot be tampered with and are retained at least 12 months so that audit evidence is admissible and complete.",
+      "asA": "security analyst",
+      "iWant": "to know that audit logs cannot be tampered with and are retained at least 12 months",
+      "soThat": "audit evidence is admissible and complete",
+      "acceptanceCriteria": [
+        {
+          "id": "AC-190",
+          "description": "Given audit log entries (auth, view, admin, AI review) are written, when stored, then they live in an append-only or cryptographically signed log such that any subsequent edit or deletion is detectable at scan time.",
+          "testable": true
+        },
+        {
+          "id": "AC-191",
+          "description": "Given an integrity scan runs on a schedule (at minimum daily), when it completes, then it verifies the audit chain has not been altered and emits a signed report; any verification failure pages security.",
+          "testable": true
+        },
+        {
+          "id": "AC-192",
+          "description": "Given an audit log entry is older than 12 months and within retention policy, when retrieved, then it returns intact; entries beyond retention policy are archived to cold storage with the same tamper-evident properties.",
+          "testable": true
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-06-03T08:07:43Z",
+  "updatedAt": "2026-06-03T08:07:43Z"
+}

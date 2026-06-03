@@ -1,0 +1,478 @@
+{
+  "tadId": "TAD-001-002",
+  "prdId": "PRD-001",
+  "version": "1.0.0",
+  "status": "draft",
+  "architecturalDecisions": [],
+  "generationMetadata": {
+    "comprehensiveness": "standard",
+    "sectionsGenerated": [
+      "components"
+    ],
+    "totalLlmCalls": 0,
+    "totalInputTokens": 0,
+    "totalOutputTokens": 0,
+    "generatedAt": "2026-06-03T08:07:50Z"
+  },
+  "partInfo": {
+    "partNumber": 2,
+    "totalParts": 4,
+    "groupId": "components",
+    "groupName": "Components",
+    "sections": [
+      "components"
+    ]
+  },
+  "createdAt": "2026-06-03T08:07:50Z",
+  "updatedAt": "2026-06-03T08:07:50Z",
+  "components": [
+    {
+      "name": "Sync Service (Confluence ingestion)",
+      "purpose": "Receive Confluence webhook events and run a polling fallback; emit one canonicalised 'page-change' event per (page, source-version) onto the publishing pipeline.",
+      "location": "services/sync (Fargate workers) + lambda/webhook-receiver (Lambda)",
+      "dependencies": [
+        "Confluence REST API",
+        "EventBridge",
+        "SQS publish-queue",
+        "Aurora PostgreSQL (sync_cursor table)"
+      ],
+      "keyPatterns": [
+        "Webhook deduplication keyed on (page_id, source_version_id)",
+        "Polling fallback with a cursor stored in Postgres, triggered by EventBridge schedule",
+        "Backoff-on-failure with DLQ for poison events"
+      ],
+      "interfaces": [
+        {
+          "name": "POST /webhooks/confluence",
+          "type": "api",
+          "description": "Confluence change webhook receiver; HMAC-verifies the payload and enqueues to SQS."
+        },
+        {
+          "name": "page-change SQS message",
+          "type": "event",
+          "description": "Canonical change event consumed by the Publishing Pipeline."
+        },
+        {
+          "name": "internal: sync-cursor reader",
+          "type": "internal",
+          "description": "Used by the polling-fallback Fargate task to resume after restart."
+        }
+      ],
+      "responsibilities": [
+        "Verify webhook authenticity and parse Confluence event payloads.",
+        "Filter on allow-list (label + space) before forwarding.",
+        "Run a periodic poll if webhooks haven't fired in N minutes.",
+        "Dedupe duplicate change events."
+      ],
+      "relatedReqs": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003"
+      ]
+    },
+    {
+      "name": "Publishing Pipeline",
+      "purpose": "Orchestrate the per-page-change flow: allow-list filter \u2192 approval-state check \u2192 AI review \u2192 render \u2192 persist version \u2192 invalidate caches \u2192 enqueue notification.",
+      "location": "services/publishing (Fargate workers, Temporal-style state machine via AWS Step Functions)",
+      "dependencies": [
+        "SQS publish-queue",
+        "AI Gateway",
+        "Renderer",
+        "Aurora PostgreSQL (document_versions)",
+        "S3 (content blobs)",
+        "OpenSearch (index updates)",
+        "Redis (cache invalidation)",
+        "SQS notify-queue"
+      ],
+      "keyPatterns": [
+        "Step-Functions state machine for retry/visibility",
+        "CAS-on-insert for version persistence (idempotent under retry)",
+        "Fail-closed on AI Gateway error"
+      ],
+      "interfaces": [
+        {
+          "name": "consume page-change",
+          "type": "event",
+          "description": "Reads page-change events from SQS."
+        },
+        {
+          "name": "emit publish-complete",
+          "type": "event",
+          "description": "Emitted on EventBridge for downstream consumers (notifications, audit)."
+        },
+        {
+          "name": "internal: persist version",
+          "type": "internal",
+          "description": "Writes immutable version blob to S3 and metadata row to Postgres."
+        }
+      ],
+      "responsibilities": [
+        "Apply the configured approval-state rule.",
+        "Call the AI Gateway for document review; halt on high-severity finding.",
+        "Render Confluence storage format to portable HTML with cross-link rewriting.",
+        "Persist version metadata + blob; update OpenSearch index; invalidate Redis cache.",
+        "Enqueue notification job once publish succeeds."
+      ],
+      "relatedReqs": [
+        "REQ-002",
+        "REQ-004",
+        "REQ-005",
+        "REQ-040",
+        "REQ-041",
+        "REQ-105"
+      ]
+    },
+    {
+      "name": "AI Gateway",
+      "purpose": "Single mediation surface for every AI call. Owns prompt templates, model selection, fail-closed semantics, audit, and token accounting.",
+      "location": "services/ai-gateway (Fargate)",
+      "dependencies": [
+        "Amazon Bedrock (Anthropic Claude models)",
+        "Postgres (prompt-version registry, AI-call audit)",
+        "QLDB (decision audit)"
+      ],
+      "keyPatterns": [
+        "One narrow tool-shaped operation per AI function (review_page, release_notes, since_last_visit, notification_summary, quality_score)",
+        "Per-operation circuit breaker with fail-closed default",
+        "Prompt-version stamped on every output for reproducibility"
+      ],
+      "interfaces": [
+        {
+          "name": "POST /ai/review",
+          "type": "api",
+          "description": "Document review request; returns findings list or 'provider-unavailable' on failure."
+        },
+        {
+          "name": "POST /ai/release-notes",
+          "type": "api",
+          "description": "Release notes generation; returns three-section draft."
+        },
+        {
+          "name": "POST /ai/summary",
+          "type": "api",
+          "description": "Generates 'Since your last visit' or per-page notification summaries."
+        },
+        {
+          "name": "POST /ai/quality",
+          "type": "api",
+          "description": "Quality scoring (completeness, readability, missing examples, missing API responses)."
+        }
+      ],
+      "responsibilities": [
+        "Build prompts from versioned templates; never inline page content into logs.",
+        "Call Amazon Bedrock with the configured Claude model.",
+        "Apply the per-operation timeout, retry, and circuit-breaker.",
+        "Return a structured 'fail-closed' error if the provider is unavailable or the response fails schema validation."
+      ],
+      "relatedReqs": [
+        "REQ-040",
+        "REQ-050",
+        "REQ-051",
+        "REQ-053",
+        "REQ-054",
+        "REQ-105"
+      ]
+    },
+    {
+      "name": "Portal API",
+      "purpose": "All authenticated read endpoints for the client portal: browse, read, version history, diff, PDF, search, notification preferences.",
+      "location": "services/portal-api (Fargate, Node.js + Fastify)",
+      "dependencies": [
+        "Aurora PostgreSQL (read replicas)",
+        "OpenSearch",
+        "S3 (content blobs and PDFs)",
+        "Redis (sessions, last-visited, render cache)"
+      ],
+      "keyPatterns": [
+        "Every request bound to a tenant via session middleware; data-layer rejects untenanted queries",
+        "Read-through cache on Redis for hot document versions",
+        "Pre-signed S3 URLs for PDF download"
+      ],
+      "interfaces": [
+        {
+          "name": "GET /api/v1/products",
+          "type": "api",
+          "description": "Tenant-scoped product/category navigation."
+        },
+        {
+          "name": "GET /api/v1/pages/:id/version/:version",
+          "type": "api",
+          "description": "Read a specific version (latest by default)."
+        },
+        {
+          "name": "GET /api/v1/pages/:id/diff",
+          "type": "api",
+          "description": "Compute a block-level diff between two versions."
+        },
+        {
+          "name": "GET /api/v1/pages/:id/pdf",
+          "type": "api",
+          "description": "Generate or fetch a PDF for the requested version."
+        },
+        {
+          "name": "GET /api/v1/search",
+          "type": "api",
+          "description": "Tenant-scoped full-text search."
+        }
+      ],
+      "responsibilities": [
+        "Authn/authz enforcement via Auth Service-issued session tokens.",
+        "Compose read responses from Postgres metadata + S3 content + OpenSearch results.",
+        "Track per-user last-visited timestamps in Redis (write-behind to Postgres).",
+        "Render PDFs on demand via the PDF renderer worker."
+      ],
+      "relatedReqs": [
+        "REQ-012",
+        "REQ-020",
+        "REQ-021",
+        "REQ-022",
+        "REQ-023",
+        "REQ-024",
+        "REQ-025",
+        "REQ-100",
+        "REQ-103"
+      ]
+    },
+    {
+      "name": "Portal Frontend (Next.js)",
+      "purpose": "Server-rendered client portal at docs.wsd.com \u2014 browse, read, version history, search, PDF download, preferences.",
+      "location": "apps/portal (Next.js 15 App Router on Fargate)",
+      "dependencies": [
+        "Portal API",
+        "Auth Service (session cookies)",
+        "CloudFront (CDN)"
+      ],
+      "keyPatterns": [
+        "React Server Components for primary read paths (no client JS for static content)",
+        "ISR (Incremental Static Regeneration) for browse navigation with per-tenant cache key",
+        "Accessibility-first component library (WCAG 2.1 AA)"
+      ],
+      "interfaces": [
+        {
+          "name": "HTTPS routes (/, /products, /pages/:id, /search, /preferences)",
+          "type": "api",
+          "description": "User-facing routes; all gated by session middleware."
+        },
+        {
+          "name": "Server Action: 'mark visited'",
+          "type": "internal",
+          "description": "Server-side mutation that updates per-user last-visited via Portal API."
+        }
+      ],
+      "responsibilities": [
+        "Render the portal UX server-side, hydrating only interactive widgets.",
+        "Enforce session presence at edge middleware; redirect to Auth Service login on absence.",
+        "Embed AI-generated 'Since your last visit' summary on the landing page.",
+        "Drive accessibility (keyboard, screen reader, contrast)."
+      ],
+      "relatedReqs": [
+        "REQ-010",
+        "REQ-020",
+        "REQ-021",
+        "REQ-025",
+        "REQ-051",
+        "REQ-100",
+        "REQ-104"
+      ]
+    },
+    {
+      "name": "Auth Service",
+      "purpose": "Login (password + TOTP), session management, optional SAML/OIDC SSO via WorkOS, password-reset, lockout, client-admin user lifecycle.",
+      "location": "services/auth (Fargate)",
+      "dependencies": [
+        "Aurora PostgreSQL (users, tenants, sessions)",
+        "Redis (active sessions, rate limits)",
+        "WorkOS (per-tenant SSO mediation)",
+        "SES (password-reset, invitation emails)"
+      ],
+      "keyPatterns": [
+        "Argon2id password hashes; TOTP secret encrypted with KMS-bound DEK",
+        "Per-tenant SSO mode flag; password login disabled when SSO is enabled",
+        "Token-bound CSRF for cookie-auth endpoints"
+      ],
+      "interfaces": [
+        {
+          "name": "POST /auth/login",
+          "type": "api",
+          "description": "Password + TOTP login."
+        },
+        {
+          "name": "POST /auth/sso/callback",
+          "type": "api",
+          "description": "WorkOS SAML/OIDC callback handler."
+        },
+        {
+          "name": "POST /auth/users/invite",
+          "type": "api",
+          "description": "Client-admin invitation flow."
+        },
+        {
+          "name": "POST /auth/logout",
+          "type": "api",
+          "description": "Idempotent logout (clears session in Redis + Postgres + cookie)."
+        }
+      ],
+      "responsibilities": [
+        "Authenticate users and establish/destroy sessions.",
+        "Enforce rate limits and account lockouts.",
+        "Mediate WorkOS SSO for tenants configured for SAML/OIDC.",
+        "Manage tenant-scoped user lifecycle (invite/disable/remove) for client-admins."
+      ],
+      "relatedReqs": [
+        "REQ-010",
+        "REQ-011",
+        "REQ-014",
+        "REQ-015"
+      ]
+    },
+    {
+      "name": "Notification Service",
+      "purpose": "Assemble per-user digest emails (cadence-aware, scope-respecting), generate AI summaries via the AI Gateway, send via SES, honour per-user preferences and reviewer approval for breaking changes.",
+      "location": "services/notifications (Fargate workers + EventBridge schedules)",
+      "dependencies": [
+        "Aurora PostgreSQL (subscriptions, preferences, send-watermarks)",
+        "AI Gateway",
+        "SES",
+        "EventBridge"
+      ],
+      "keyPatterns": [
+        "Per-user 'last notified high-water mark' for idempotent re-runs",
+        "Breaking-change emails sit in 'pending-review' state until approved",
+        "One-click unsubscribe links signed with a per-user HMAC"
+      ],
+      "interfaces": [
+        {
+          "name": "consume publish-complete",
+          "type": "event",
+          "description": "Reacts to publish-complete from EventBridge."
+        },
+        {
+          "name": "cron: cadence batches",
+          "type": "internal",
+          "description": "EventBridge schedules daily/weekly digest assembly."
+        },
+        {
+          "name": "POST /notifications/preferences",
+          "type": "api",
+          "description": "User-facing preference updates (proxied via Portal API)."
+        }
+      ],
+      "responsibilities": [
+        "Compute the per-user changed-pages set respecting access scope.",
+        "Generate per-page summaries via AI Gateway with fallback to title-only.",
+        "Send via SES with signed unsubscribe and source = 'email-digest' tracking.",
+        "Suppress sends to disabled / removed users."
+      ],
+      "relatedReqs": [
+        "REQ-030",
+        "REQ-031",
+        "REQ-032",
+        "REQ-053"
+      ]
+    },
+    {
+      "name": "Admin UI",
+      "purpose": "Doc-owner and reviewer surface for sync admin, AI review triage, release-notes approval, quality scoring view, unpublish.",
+      "location": "apps/admin (Next.js on Fargate, behind WSD SSO)",
+      "dependencies": [
+        "Portal API (admin endpoints)",
+        "Auth Service (WSD-staff identity)",
+        "AI Gateway"
+      ],
+      "keyPatterns": [
+        "WSD-staff-only access (separate WorkOS connection to WSD's IdP)",
+        "All actions audit-logged to QLDB"
+      ],
+      "interfaces": [
+        {
+          "name": "HTTPS routes (/sync, /reviews, /notes, /quality)",
+          "type": "api",
+          "description": "Admin surfaces."
+        }
+      ],
+      "responsibilities": [
+        "Allow doc owners to manage allow-list, re-trigger sync, unpublish.",
+        "Allow reviewers to triage AI findings, approve release notes, approve breaking-change notifications.",
+        "Surface quality scores and trends per page."
+      ],
+      "relatedReqs": [
+        "REQ-006",
+        "REQ-007",
+        "REQ-042",
+        "REQ-050",
+        "REQ-052",
+        "REQ-054",
+        "REQ-055"
+      ]
+    },
+    {
+      "name": "Audit Log Service",
+      "purpose": "Append-only, tamper-evident audit storage and query API. Backed by QLDB.",
+      "location": "services/audit (Fargate)",
+      "dependencies": [
+        "Amazon QLDB",
+        "EventBridge (audit-event consumer)"
+      ],
+      "keyPatterns": [
+        "QLDB journal verification (cryptographic digest) on schedule",
+        "Read API constrained to security + admin roles",
+        "Retention \u2265 12 months; cold-archive to S3 with object-lock thereafter"
+      ],
+      "interfaces": [
+        {
+          "name": "consume audit-event",
+          "type": "event",
+          "description": "EventBridge audit-event consumer."
+        },
+        {
+          "name": "GET /audit/query",
+          "type": "api",
+          "description": "Security/admin query API for events by actor/tenant/document/date range."
+        }
+      ],
+      "responsibilities": [
+        "Persist every audit-relevant event with actor, action, target, before/after, timestamp.",
+        "Verify journal integrity on schedule and on demand.",
+        "Serve compliance queries with SLAs."
+      ],
+      "relatedReqs": [
+        "REQ-016",
+        "REQ-107"
+      ]
+    },
+    {
+      "name": "Renderer",
+      "purpose": "Convert Confluence storage format to portable, accessible HTML and on-demand PDF.",
+      "location": "services/renderer (Fargate; Playwright-headless for PDF)",
+      "dependencies": [
+        "S3 (content blobs, PDFs)",
+        "Postgres (link-rewrite tables)"
+      ],
+      "keyPatterns": [
+        "Confluence-storage \u2192 AST \u2192 portal HTML (deterministic) \u2192 PDF (Playwright)",
+        "Cross-link resolution against the published-pages index"
+      ],
+      "interfaces": [
+        {
+          "name": "POST /render/html",
+          "type": "internal",
+          "description": "Called by Publishing Pipeline at persist-version time."
+        },
+        {
+          "name": "POST /render/pdf",
+          "type": "internal",
+          "description": "Called by Portal API on download."
+        }
+      ],
+      "responsibilities": [
+        "Faithful structural rendering of headings, lists, tables, code, images.",
+        "Cross-link rewriting (live vs 'not available').",
+        "Add audit footer (title, version, tenant identity) to every PDF."
+      ],
+      "relatedReqs": [
+        "REQ-005",
+        "REQ-023"
+      ]
+    }
+  ]
+}

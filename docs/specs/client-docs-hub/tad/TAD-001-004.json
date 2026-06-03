@@ -1,0 +1,1068 @@
+{
+  "tadId": "TAD-001-004",
+  "prdId": "PRD-001",
+  "version": "1.0.0",
+  "status": "draft",
+  "architecturalDecisions": [
+    {
+      "id": "ADR-001",
+      "title": "Anthropic Claude via Amazon Bedrock (vs direct Anthropic API)",
+      "status": "accepted",
+      "context": "All AI functions need a high-quality LLM. The two realistic paths are direct Anthropic API and Claude via Amazon Bedrock. Both expose comparable model capability; the decision is operational.",
+      "optionsConsidered": [
+        {
+          "option": "Direct Anthropic API",
+          "pros": [
+            "Newer model availability sometimes lands earlier",
+            "Simpler SDK"
+          ],
+          "cons": [
+            "Public-internet egress for AI traffic; additional network boundary to audit",
+            "Separate billing relationship outside AWS",
+            "Harder to enforce 'no-cross-network leakage' guarantees"
+          ]
+        },
+        {
+          "option": "Amazon Bedrock InvokeModel",
+          "pros": [
+            "VPC endpoint \u2014 AI traffic never leaves AWS network",
+            "Unified IAM / KMS / CloudWatch / billing",
+            "Tooling consistency with the rest of the stack",
+            "Easier audit story"
+          ],
+          "cons": [
+            "Bedrock model versions can lag Anthropic releases by days\u2013weeks",
+            "Slightly higher per-token cost"
+          ]
+        }
+      ],
+      "decision": "Use Amazon Bedrock InvokeModel for all Claude calls. Confine all AI traffic to a Bedrock VPC endpoint; no direct internet AI egress.",
+      "rationale": "The single-network-egress posture materially simplifies the security story for a client-data-handling system, and the AWS-native IAM/audit story outweighs the model-version-lag cost.",
+      "consequences": [
+        "AI Gateway only talks to Bedrock; provider abstraction is preserved so we can revisit if Bedrock lag becomes painful.",
+        "Model upgrade requires a Bedrock model availability check first.",
+        "All AI prompt+response audit lives within AWS \u2014 easier compliance review."
+      ],
+      "relatedReqs": [
+        "REQ-040",
+        "REQ-050",
+        "REQ-105"
+      ],
+      "relatedDecisions": [
+        "ADR-007"
+      ]
+    },
+    {
+      "id": "ADR-002",
+      "title": "Multi-tenant PostgreSQL via tenant_id + RLS (vs schema-per-tenant or DB-per-tenant)",
+      "status": "accepted",
+      "context": "Tenant isolation must be enforced below the UI. The standard options are: tenant_id column with RLS, schema-per-tenant, or database-per-tenant.",
+      "optionsConsidered": [
+        {
+          "option": "tenant_id + Row-Level Security",
+          "pros": [
+            "Operational simplicity",
+            "Cross-tenant analytics easy when needed",
+            "Single migration surface"
+          ],
+          "cons": [
+            "RLS bypass risk if a query forgets to set the session var",
+            "Noisy-neighbour for query plans across tenants"
+          ]
+        },
+        {
+          "option": "Schema-per-tenant",
+          "pros": [
+            "Hard logical boundary inside one DB",
+            "Per-tenant ALTER TABLE easier"
+          ],
+          "cons": [
+            "Migration of N tenants is N\u00d7 the work",
+            "Connection pool sizing complex",
+            "Search index still needs tenant filter"
+          ]
+        },
+        {
+          "option": "Database-per-tenant",
+          "pros": [
+            "Strongest isolation",
+            "Per-tenant backup/restore"
+          ],
+          "cons": [
+            "Operationally expensive (N RDS clusters)",
+            "Cross-tenant features impossible",
+            "Slow client onboarding"
+          ]
+        }
+      ],
+      "decision": "tenant_id column on every tenant-scoped table with PostgreSQL Row-Level Security policies. A tenant-bound connection wrapper sets app.tenant_id at session start; queries without it are blocked by RLS.",
+      "rationale": "RLS + a single audit-able connection wrapper gives us hard data-layer enforcement while keeping operational cost linear, not multiplicative. We pair this with an automated cross-tenant CI test for defence-in-depth.",
+      "consequences": [
+        "Every read/write helper must use the tenant-bound connection; lint rule + code review enforce.",
+        "Cross-tenant CI test failure blocks every deploy.",
+        "If a future tenant requires strong physical isolation, we can move them to their own database without changing the application data model."
+      ],
+      "relatedReqs": [
+        "REQ-012",
+        "REQ-103"
+      ],
+      "relatedDecisions": [
+        "ADR-006"
+      ]
+    },
+    {
+      "id": "ADR-003",
+      "title": "QLDB for tamper-evident audit (vs append-only PostgreSQL + signed log)",
+      "status": "accepted",
+      "context": "REQ-107 requires tamper-evident audit retained \u2265 12 months.",
+      "optionsConsidered": [
+        {
+          "option": "Amazon QLDB",
+          "pros": [
+            "Cryptographic journal verification built-in",
+            "Purpose-built for this use case",
+            "Indexed query for compliance"
+          ],
+          "cons": [
+            "Adds a managed service to operate",
+            "Schema/query model less familiar than SQL"
+          ]
+        },
+        {
+          "option": "Postgres append-only table + nightly signing",
+          "pros": [
+            "No new infra; one less service to operate"
+          ],
+          "cons": [
+            "Easier for a privileged DB user to silently edit",
+            "Signing is bolt-on, not built-in",
+            "Restore-from-backup path is murky for audit semantics"
+          ]
+        },
+        {
+          "option": "S3 object-lock + structured log",
+          "pros": [
+            "Object-lock prevents deletion",
+            "Cheap"
+          ],
+          "cons": [
+            "Query-by-actor or date-range is slow",
+            "No native digest verification \u2014 must roll our own chain"
+          ]
+        }
+      ],
+      "decision": "Use Amazon QLDB for audit. Cold-archive to S3 object-lock after 12 months for cost.",
+      "rationale": "Built-in cryptographic verification is the strongest control and the cheapest to defend in a compliance review.",
+      "consequences": [
+        "Audit Service is a small standalone service that owns the QLDB integration.",
+        "Daily integrity job verifies the digest; any failure pages security.",
+        "Cold archive workflow handled by an EventBridge schedule."
+      ],
+      "relatedReqs": [
+        "REQ-016",
+        "REQ-107"
+      ]
+    },
+    {
+      "id": "ADR-004",
+      "title": "Next.js (App Router) for the portal frontend (vs static SPA)",
+      "status": "accepted",
+      "context": "The portal is documentation-heavy and read-dominant. Server-side rendering vs SPA has implications for latency, search, and accessibility.",
+      "optionsConsidered": [
+        {
+          "option": "Next.js 15 App Router with React Server Components",
+          "pros": [
+            "Fast first contentful paint",
+            "Strong accessibility defaults",
+            "Per-tenant cache key at the edge via middleware",
+            "Co-located React SSR for the AI summary block"
+          ],
+          "cons": [
+            "More moving parts than a static SPA",
+            "RSC learning curve"
+          ]
+        },
+        {
+          "option": "Static SPA (Vite + React)",
+          "pros": [
+            "Operationally minimal",
+            "Easy to host"
+          ],
+          "cons": [
+            "Worse initial paint",
+            "Worse a11y unless extra care",
+            "Per-tenant cache hard to get right at the edge",
+            "Need a separate read API anyway"
+          ]
+        },
+        {
+          "option": "Server-rendered Lit / web components",
+          "pros": [
+            "Consistent with the existing WAIF stack"
+          ],
+          "cons": [
+            "Smaller ecosystem for SSR",
+            "Internal team less experienced with deep SSR in Lit"
+          ]
+        }
+      ],
+      "decision": "Next.js 15 App Router with React Server Components, deployed on Fargate behind CloudFront with a Lambda@Edge middleware that derives the cache key from the session-bound tenant ID.",
+      "rationale": "The portal's read-dominant, accessibility-mandated workload is exactly Next.js's sweet spot. Per-tenant cache key at the edge is the critical safety feature that closes the cross-tenant CDN risk.",
+      "consequences": [
+        "We accept a heavier ops surface than a pure SPA.",
+        "Per-tenant cache-key in Lambda@Edge is a critical security control and must be tested.",
+        "The Admin UI also uses Next.js for stack consistency."
+      ],
+      "relatedReqs": [
+        "REQ-020",
+        "REQ-021",
+        "REQ-100",
+        "REQ-104"
+      ]
+    },
+    {
+      "id": "ADR-005",
+      "title": "Webhook-driven sync with polling fallback (vs polling-only)",
+      "status": "accepted",
+      "context": "The 5-minute SLA in REQ-NFR-002 can be hit by either pattern, but each has different failure modes.",
+      "optionsConsidered": [
+        {
+          "option": "Webhook + polling fallback",
+          "pros": [
+            "Lowest latency under steady state",
+            "Polling backs up missed events",
+            "Resilient to webhook delivery outages"
+          ],
+          "cons": [
+            "Two code paths to maintain",
+            "Webhook receiver requires public ingress with HMAC + IP allow-list"
+          ]
+        },
+        {
+          "option": "Polling-only",
+          "pros": [
+            "Single code path",
+            "No public ingress required"
+          ],
+          "cons": [
+            "Floor latency = polling interval; lower interval drives Confluence API cost",
+            "Less suited to bursty publishing days"
+          ]
+        }
+      ],
+      "decision": "Webhook-driven, with a polling fallback triggered when webhooks have been silent for longer than a configurable threshold (default 5 min). The polling cursor is in Postgres.",
+      "rationale": "Steady-state latency target is best met by webhooks; reliability is best met by polling. The combination satisfies both at the cost of one extra code path.",
+      "consequences": [
+        "Webhook receiver runs as Lambda behind API Gateway with HMAC + Confluence IP allow-list.",
+        "Polling Fargate task fires on EventBridge schedule with a backoff.",
+        "Both paths converge on the same SQS publish-queue, so downstream code only sees one event type."
+      ],
+      "relatedReqs": [
+        "REQ-003"
+      ]
+    },
+    {
+      "id": "ADR-006",
+      "title": "Immutable content blobs in S3 with Object Lock (vs in-DB CLOBs)",
+      "status": "accepted",
+      "context": "Each published page version has rendered HTML and an original Confluence storage-format snapshot. Two natural homes: Postgres CLOB columns or S3 objects.",
+      "optionsConsidered": [
+        {
+          "option": "S3 object-lock with versioning",
+          "pros": [
+            "Built-in immutability via Object Lock",
+            "Cheap at scale",
+            "Lifecycle to IA for cold versions",
+            "Decoupled from DB row size"
+          ],
+          "cons": [
+            "Two systems to reason about",
+            "Slightly more code for read path"
+          ]
+        },
+        {
+          "option": "Postgres CLOB",
+          "pros": [
+            "Single store; transactional consistency with metadata"
+          ],
+          "cons": [
+            "Bloats DB size and backup time",
+            "No native immutability",
+            "More expensive per GB"
+          ]
+        }
+      ],
+      "decision": "Rendered HTML and Confluence storage snapshot go to S3 with Object Lock (compliance mode for the snapshot, governance mode for the HTML). Postgres holds only the metadata row plus the S3 key.",
+      "rationale": "Immutability is a first-class requirement; S3 Object Lock is the cheapest and strongest way to enforce it. Decoupling blobs from the metadata DB also keeps DB performance predictable as the catalog grows.",
+      "consequences": [
+        "Publish step is a CAS write to S3 (with If-None-Match) plus a Postgres insert; both are required.",
+        "Garbage collection of versions beyond 20 is a metadata-only operation; the S3 blobs lifecycle to IA but never delete during the retention window.",
+        "PDF blobs live in a separate bucket with a TTL of 30 days; regenerated on demand if stale."
+      ],
+      "relatedReqs": [
+        "REQ-004",
+        "REQ-005",
+        "REQ-023"
+      ]
+    },
+    {
+      "id": "ADR-007",
+      "title": "AI review fail-closed via queue + alert (vs fail-open with warning)",
+      "status": "accepted",
+      "context": "REQ-105 requires fail-closed. The decision is how the fail-closed state is presented operationally.",
+      "optionsConsidered": [
+        {
+          "option": "Halt publish; queue page in 'review-pending-provider'; alert security + on-call",
+          "pros": [
+            "Strong guarantee",
+            "Clear operational signal",
+            "Backlog drains naturally when provider returns"
+          ],
+          "cons": [
+            "Publish backlog grows during outages"
+          ]
+        },
+        {
+          "option": "Halt publish; surface an actionable banner to doc owners with a documented break-glass procedure",
+          "pros": [
+            "Doc owners know what to do",
+            "Backlog visible to humans"
+          ],
+          "cons": [
+            "Tempting to bypass"
+          ]
+        },
+        {
+          "option": "Fail-open with reviewer warning",
+          "pros": [
+            "No publish backlog"
+          ],
+          "cons": [
+            "Violates REQ-105",
+            "Catastrophic if the bypass becomes the default during an outage"
+          ]
+        }
+      ],
+      "decision": "Halt the publish; queue the page in 'review-pending-provider'; emit ai-review-pending-provider on EventBridge; show a clear banner in Admin UI; alert on-call. Bypass requires a documented two-person break-glass procedure with QLDB-audited justification, and is forbidden in prod by default config.",
+      "rationale": "REQ-105 makes fail-closed non-negotiable. Pairing it with clear operational visibility and an explicit (audited) break-glass path gives security teeth and operators a clear UX.",
+      "consequences": [
+        "An AI Bedrock outage stops publishes; SLA dashboards reflect this honestly.",
+        "Two-person break-glass procedure exists, is documented, and rarely used.",
+        "We monitor the break-glass usage as a counter metric."
+      ],
+      "relatedReqs": [
+        "REQ-040",
+        "REQ-041",
+        "REQ-105"
+      ],
+      "relatedDecisions": [
+        "ADR-001"
+      ]
+    },
+    {
+      "id": "ADR-008",
+      "title": "Per-page on-demand PDF (vs per-version pre-rendered)",
+      "status": "accepted",
+      "context": "REQ-023 requires PDF download. Two extremes are 'render on every read' and 'pre-render every version'.",
+      "optionsConsidered": [
+        {
+          "option": "On-demand with 30-day cache",
+          "pros": [
+            "No storage for unread versions",
+            "Renderer can include current user identity in footer for audit"
+          ],
+          "cons": [
+            "First click for a given (version, requester) costs a render"
+          ]
+        },
+        {
+          "option": "Pre-render every version at publish",
+          "pros": [
+            "Instant download"
+          ],
+          "cons": [
+            "Renders we never serve",
+            "Footer cannot carry per-requester identity unless we render per-user"
+          ]
+        }
+      ],
+      "decision": "On-demand render with a 30-day TTL cache. Footer includes the requesting user's tenant identity (not username) for audit traceability.",
+      "rationale": "Reading is the dominant access pattern, not PDF download; pre-rendering would waste storage. The 30-day cache absorbs hotspots.",
+      "consequences": [
+        "Renderer service must be horizontally scalable for bursts.",
+        "PDF bucket lifecycle: 30 days hot, then delete; regenerated if requested.",
+        "Audit footer renders client tenant + version + timestamp; never embeds username."
+      ],
+      "relatedReqs": [
+        "REQ-023"
+      ]
+    },
+    {
+      "id": "ADR-009",
+      "title": "WorkOS for enterprise SSO (vs Keycloak self-hosted vs Auth0)",
+      "status": "accepted",
+      "context": "Some launch clients require SAML 2.0 / OIDC SSO (REQ-015). We need a mediator that can host per-tenant connections without us writing SAML directly.",
+      "optionsConsidered": [
+        {
+          "option": "WorkOS",
+          "pros": [
+            "Built specifically for B2B per-tenant SSO",
+            "Connection setup UX is good for client admins",
+            "No SAML library in our codebase"
+          ],
+          "cons": [
+            "External dependency",
+            "Per-active-connection pricing"
+          ]
+        },
+        {
+          "option": "Keycloak self-hosted",
+          "pros": [
+            "No vendor lock-in",
+            "No per-connection cost"
+          ],
+          "cons": [
+            "Operational burden of running an identity server",
+            "Per-tenant configuration UX falls to us"
+          ]
+        },
+        {
+          "option": "Auth0",
+          "pros": [
+            "Mature",
+            "Broad ecosystem"
+          ],
+          "cons": [
+            "Heavier than we need for SSO-only",
+            "Pricing"
+          ]
+        }
+      ],
+      "decision": "WorkOS for SAML 2.0 / OIDC mediation. Password+TOTP login remains in-house. Per-tenant SSO mode is a Tenant.sso_mode flag.",
+      "rationale": "WorkOS's product surface is exactly the per-tenant-SSO problem; we get a clean UX and avoid hosting SAML primitives. The dependency is well-bounded \u2014 it only mediates SSO and is feature-flagged per tenant.",
+      "consequences": [
+        "Auth Service has two login paths; per-tenant flag selects.",
+        "WorkOS is in the critical path only for SSO-enabled tenants; password+TOTP tenants are unaffected by WorkOS outage.",
+        "We monitor WorkOS health as a dedicated SLO."
+      ],
+      "relatedReqs": [
+        "REQ-015"
+      ]
+    },
+    {
+      "id": "ADR-010",
+      "title": "Step Functions for the publishing pipeline (vs in-process worker)",
+      "status": "accepted",
+      "context": "The publishing pipeline has 5+ retriable stages (allow-list, approval, AI review, render, persist, index, cache invalidate, notify). The orchestration choice affects visibility and retry semantics.",
+      "optionsConsidered": [
+        {
+          "option": "AWS Step Functions Standard",
+          "pros": [
+            "Visual workflow + per-step audit",
+            "Retry/visibility per step",
+            "Free-tier covers small volumes"
+          ],
+          "cons": [
+            "State-machine JSON to maintain",
+            "Cost scales with volume"
+          ]
+        },
+        {
+          "option": "In-process worker with per-stage try/retry",
+          "pros": [
+            "Single deployable",
+            "No state-machine spec"
+          ],
+          "cons": [
+            "Per-step visibility is logs-only",
+            "Retry semantics live in code"
+          ]
+        }
+      ],
+      "decision": "AWS Step Functions Standard for the publishing pipeline; the worker code per stage is a Fargate task or Lambda.",
+      "rationale": "The per-step visibility and retry semantics are worth the orchestration cost; SLA debugging is materially easier with a state-machine view.",
+      "consequences": [
+        "Each stage is a distinct Lambda or Fargate task with a clear input/output schema.",
+        "Step Functions JSON spec lives in the publishing service repo and is reviewed alongside code changes.",
+        "Per-stage metrics emit automatically; alerting is per-stage."
+      ],
+      "relatedReqs": [
+        "REQ-003",
+        "REQ-040",
+        "REQ-101"
+      ]
+    }
+  ],
+  "generationMetadata": {
+    "comprehensiveness": "standard",
+    "sectionsGenerated": [
+      "securityArchitecture",
+      "deploymentArchitecture",
+      "operationalConcerns",
+      "architecturalDecisions"
+    ],
+    "totalLlmCalls": 0,
+    "totalInputTokens": 0,
+    "totalOutputTokens": 0,
+    "generatedAt": "2026-06-03T08:07:50Z"
+  },
+  "partInfo": {
+    "partNumber": 4,
+    "totalParts": 4,
+    "groupId": "operations",
+    "groupName": "Security, Deployment, Operations & ADRs",
+    "sections": [
+      "securityArchitecture",
+      "deploymentArchitecture",
+      "operationalConcerns",
+      "architecturalDecisions"
+    ]
+  },
+  "createdAt": "2026-06-03T08:07:50Z",
+  "updatedAt": "2026-06-03T08:07:50Z",
+  "securityArchitecture": {
+    "securityBoundaries": "Three concentric boundaries: (1) Edge \u2014 CloudFront + AWS WAF in front of every public route, with managed rule sets for OWASP Top 10 + bot control. (2) Service mesh \u2014 services live in private subnets; only ALB ingress per service is exposed; service-to-service traffic uses IAM-authenticated mTLS via the service mesh. (3) Data \u2014 Aurora, OpenSearch, ElastiCache, S3, QLDB all in private subnets, accessible only from the service VPC via VPC endpoints. Confluence is reached via an outbound NAT gateway with a static IP for Confluence allow-listing. Bedrock is reached via a VPC endpoint \u2014 no public internet egress for AI traffic.",
+    "authenticationPattern": {
+      "type": "Cookie-bound session, signed in Auth Service; per-tenant flag selects between password+TOTP and WorkOS-mediated SAML/OIDC SSO",
+      "flow": "Password+TOTP: POST /auth/login with email+password \u2192 on success, Auth Service issues a TOTP challenge \u2192 on valid TOTP, Auth Service writes the session to Postgres + Redis and sets a Secure, HttpOnly, SameSite=Strict cookie scoped to docs.wsd.com. SSO: GET /auth/sso/start?tenant=\u2026 \u2192 WorkOS authorize URL \u2192 user authenticates at their IdP \u2192 callback to /auth/sso/callback with the WorkOS code \u2192 Auth Service exchanges code for a profile, maps the group claim to a role, writes the session, sets the same cookie.",
+      "tokenStructure": "Session cookies carry an opaque 256-bit random session ID; the session record (in Redis + Postgres) holds tenant_id, user_id, role, factor, expiry, ip, ua. A separate token-bound CSRF token is set on form-bearing flows."
+    },
+    "authorizationModel": {
+      "type": "Hybrid: tenant scope (data-layer RLS) + role-based authorization (application layer)",
+      "roleMapping": [
+        {
+          "role": "reader",
+          "permissions": [
+            "read:document",
+            "read:version",
+            "create:pdf",
+            "manage:own-prefs"
+          ]
+        },
+        {
+          "role": "client_admin",
+          "permissions": [
+            "reader.*",
+            "invite:user",
+            "disable:user",
+            "remove:user (within own tenant)"
+          ]
+        },
+        {
+          "role": "wsd_doc_owner",
+          "permissions": [
+            "manage:allow-list",
+            "manual:re-sync",
+            "unpublish:page",
+            "publish-override:on-quality-warning"
+          ]
+        },
+        {
+          "role": "wsd_reviewer",
+          "permissions": [
+            "triage:ai-finding",
+            "approve:release-notes",
+            "approve:breaking-change-notification"
+          ]
+        },
+        {
+          "role": "wsd_security",
+          "permissions": [
+            "query:audit-log",
+            "verify:audit-integrity"
+          ]
+        }
+      ]
+    },
+    "securityControls": [
+      {
+        "control": "Tenant isolation at the data layer (PostgreSQL Row-Level Security)",
+        "implementation": "Every tenant-scoped table carries a tenant_id column with an RLS policy that admits rows only when current_setting('app.tenant_id') matches; a tenant-bound connection sets app.tenant_id at session start.",
+        "location": "Aurora PostgreSQL",
+        "relatedReqs": [
+          "REQ-012",
+          "REQ-103"
+        ]
+      },
+      {
+        "control": "Search index tenant filter injection",
+        "implementation": "OpenSearch queries are routed through a thin gateway that injects the tenant filter at query-build time; callers cannot pass raw queries.",
+        "location": "Portal API search adapter",
+        "relatedReqs": [
+          "REQ-024",
+          "REQ-103"
+        ]
+      },
+      {
+        "control": "AI review fail-closed gate",
+        "implementation": "Publishing Pipeline halts on any AI Gateway 'provider-unavailable' error and emits ai-review-pending-provider on EventBridge.",
+        "location": "services/publishing",
+        "relatedReqs": [
+          "REQ-040",
+          "REQ-041",
+          "REQ-105"
+        ]
+      },
+      {
+        "control": "Append-only tamper-evident audit",
+        "implementation": "Audit Service writes to QLDB; daily integrity job verifies the QLDB digest and alerts on mismatch.",
+        "location": "services/audit",
+        "relatedReqs": [
+          "REQ-016",
+          "REQ-107"
+        ]
+      },
+      {
+        "control": "Encryption at rest (KMS)",
+        "implementation": "All data stores use AWS-managed CMKs with annual rotation; TOTP secrets and other PII fields are wrapped with a per-tenant DEK.",
+        "location": "All data stores",
+        "relatedReqs": [
+          "REQ-102"
+        ]
+      },
+      {
+        "control": "WAF + managed rules",
+        "implementation": "AWS WAF with the AWSManagedRulesCommonRuleSet, AWSManagedRulesKnownBadInputsRuleSet, plus tenant-aware rate limits.",
+        "location": "CloudFront / ALB",
+        "relatedReqs": [
+          "REQ-010",
+          "REQ-011"
+        ]
+      },
+      {
+        "control": "Brute-force lockout",
+        "implementation": "5 failed logins per user / 10 min \u2192 15-min lockout; per-IP throttling on top.",
+        "location": "services/auth + Redis counters",
+        "relatedReqs": [
+          "REQ-011"
+        ]
+      },
+      {
+        "control": "Cross-tenant CI test",
+        "implementation": "An automated test suite asserts on every release that read endpoints reject cross-tenant access; failures block deploy.",
+        "location": "CI",
+        "relatedReqs": [
+          "REQ-012",
+          "REQ-024",
+          "REQ-103"
+        ]
+      }
+    ],
+    "sensitiveDataHandling": [
+      {
+        "dataType": "Password hash",
+        "classification": "Restricted",
+        "handling": "Argon2id with platform-tuned cost; stored in Postgres; never logged."
+      },
+      {
+        "dataType": "TOTP secret",
+        "classification": "Restricted",
+        "handling": "Encrypted with per-tenant DEK wrapped by KMS CMK; never logged."
+      },
+      {
+        "dataType": "Session cookie value",
+        "classification": "Restricted",
+        "handling": "256-bit opaque ID; never logged in plaintext; only the prefix is logged for correlation."
+      },
+      {
+        "dataType": "Email address",
+        "classification": "Confidential (PII)",
+        "handling": "Encrypted at rest via Aurora storage encryption; access scoped via RLS."
+      },
+      {
+        "dataType": "Confluence storage-format snapshot",
+        "classification": "Confidential (may contain client-specific text)",
+        "handling": "Stored in S3 with object-lock; bucket policy restricts access to publishing pipeline + audit role."
+      },
+      {
+        "dataType": "AI-pipeline prompt + response payloads",
+        "classification": "Confidential",
+        "handling": "Stored in a dedicated S3 bucket with KMS encryption; secret-shape strings redacted before logging."
+      },
+      {
+        "dataType": "Audit log entries",
+        "classification": "Restricted (forensic)",
+        "handling": "Tamper-evident in QLDB; read access limited to wsd_security role; queries are themselves audit-logged."
+      }
+    ],
+    "complianceRequirements": [
+      "WCAG 2.1 AA for primary client-facing flows (REQ-104).",
+      "\u2265 12 month audit retention (REQ-016, REQ-107).",
+      "Tamper-evident audit log (REQ-107).",
+      "Per-tenant data isolation enforceable below the UI (REQ-012, REQ-103).",
+      "TLS 1.2+ in transit; KMS-managed encryption at rest (REQ-102)."
+    ]
+  },
+  "deploymentArchitecture": {
+    "targetEnvironment": {
+      "platform": "AWS \u2014 Fargate (services) + Lambda (webhook + cron) + Aurora Serverless v2 + ElastiCache + OpenSearch managed + S3 + QLDB + SES + Bedrock; per-environment AWS account (dev / staging / prod) under WSD organisation.",
+      "topology": "Per-env: 1\u00d7 VPC, 2\u00d7 AZ minimum; ALBs in public subnets; Fargate services in private subnets; data tier in isolated subnets with VPC endpoints to S3, KMS, SES, Bedrock. CloudFront in front of the Next.js frontend ALB and a separate distribution for static assets. Webhook receiver Lambda behind API Gateway + WAF + Confluence-IP allow-list.",
+      "environmentVariables": [
+        {
+          "name": "DATABASE_URL",
+          "description": "Aurora connection string (Secrets Manager reference)",
+          "sensitive": true
+        },
+        {
+          "name": "REDIS_URL",
+          "description": "ElastiCache endpoint",
+          "sensitive": false
+        },
+        {
+          "name": "OPENSEARCH_ENDPOINT",
+          "description": "OpenSearch domain endpoint",
+          "sensitive": false
+        },
+        {
+          "name": "S3_CONTENT_BUCKET",
+          "description": "Content blob bucket name",
+          "sensitive": false
+        },
+        {
+          "name": "S3_PDF_BUCKET",
+          "description": "PDF bucket name",
+          "sensitive": false
+        },
+        {
+          "name": "QLDB_LEDGER_NAME",
+          "description": "Audit ledger name",
+          "sensitive": false
+        },
+        {
+          "name": "BEDROCK_MODEL_ARN",
+          "description": "Claude model ARN",
+          "sensitive": false
+        },
+        {
+          "name": "WORKOS_API_KEY",
+          "description": "WorkOS API key (Secrets Manager)",
+          "sensitive": true
+        },
+        {
+          "name": "CONFLUENCE_OAUTH_CLIENT_SECRET",
+          "description": "Confluence OAuth secret (Secrets Manager)",
+          "sensitive": true
+        },
+        {
+          "name": "SESSION_SIGNING_KEY",
+          "description": "Per-env session signing key (Secrets Manager + KMS)",
+          "sensitive": true
+        },
+        {
+          "name": "AI_REVIEW_FAIL_CLOSED",
+          "description": "Hard switch; must be 'true' in prod",
+          "sensitive": false
+        }
+      ]
+    },
+    "scalingStrategy": [
+      {
+        "component": "Portal Frontend",
+        "minInstances": 2,
+        "maxInstances": 20,
+        "scalingTrigger": "CPU > 60% or p95 latency > 1.2 s for 3 min"
+      },
+      {
+        "component": "Portal API",
+        "minInstances": 2,
+        "maxInstances": 30,
+        "scalingTrigger": "CPU > 60% or RPS-per-task > target"
+      },
+      {
+        "component": "Publishing Pipeline workers",
+        "minInstances": 1,
+        "maxInstances": 10,
+        "scalingTrigger": "SQS publish-queue depth > 50 or oldest message age > 60 s"
+      },
+      {
+        "component": "AI Gateway",
+        "minInstances": 2,
+        "maxInstances": 10,
+        "scalingTrigger": "Bedrock concurrent-call gauge"
+      },
+      {
+        "component": "Notification Service workers",
+        "minInstances": 1,
+        "maxInstances": 8,
+        "scalingTrigger": "Notification queue depth"
+      },
+      {
+        "component": "Auth Service",
+        "minInstances": 2,
+        "maxInstances": 8,
+        "scalingTrigger": "CPU > 60% or 5xx rate > 0.5%"
+      },
+      {
+        "component": "Renderer",
+        "minInstances": 1,
+        "maxInstances": 6,
+        "scalingTrigger": "PDF render queue depth"
+      }
+    ],
+    "resourceRequirements": [
+      {
+        "component": "Portal Frontend",
+        "cpuRequest": "500m",
+        "cpuLimit": "2000m",
+        "memoryRequest": "512Mi",
+        "memoryLimit": "2Gi"
+      },
+      {
+        "component": "Portal API",
+        "cpuRequest": "500m",
+        "cpuLimit": "2000m",
+        "memoryRequest": "512Mi",
+        "memoryLimit": "2Gi"
+      },
+      {
+        "component": "Publishing Pipeline worker",
+        "cpuRequest": "500m",
+        "cpuLimit": "2000m",
+        "memoryRequest": "1Gi",
+        "memoryLimit": "4Gi"
+      },
+      {
+        "component": "AI Gateway",
+        "cpuRequest": "250m",
+        "cpuLimit": "1000m",
+        "memoryRequest": "512Mi",
+        "memoryLimit": "2Gi"
+      },
+      {
+        "component": "Notification Service",
+        "cpuRequest": "250m",
+        "cpuLimit": "1000m",
+        "memoryRequest": "512Mi",
+        "memoryLimit": "2Gi"
+      },
+      {
+        "component": "Auth Service",
+        "cpuRequest": "500m",
+        "cpuLimit": "1500m",
+        "memoryRequest": "512Mi",
+        "memoryLimit": "2Gi"
+      },
+      {
+        "component": "Audit Service",
+        "cpuRequest": "250m",
+        "cpuLimit": "1000m",
+        "memoryRequest": "512Mi",
+        "memoryLimit": "2Gi"
+      },
+      {
+        "component": "Renderer",
+        "cpuRequest": "500m",
+        "cpuLimit": "2000m",
+        "memoryRequest": "1Gi",
+        "memoryLimit": "4Gi"
+      }
+    ],
+    "containerization": {
+      "enabled": true,
+      "baseImage": "public.ecr.aws/docker/library/node:20-bookworm-slim",
+      "buildStrategy": "Multi-stage Dockerfile per service; non-root user; healthcheck baked in; SBOM emitted; signed via Sigstore."
+    },
+    "cicdPipeline": "GitHub Actions: on push \u2192 lint + typecheck + unit + integration + cross-tenant isolation suite + container image build + SBOM + Sigstore signing \u2192 CDK deploy to dev. Promotion: tag triggers staging deploy \u2192 smoke tests + synthetic load test \u2192 manual approval gate (release manager) \u2192 prod deploy with progressive rollout (10% \u2192 50% \u2192 100%) and automatic rollback on SLO breach. CDK app per service; one IaC repo for shared infra (VPC, ALB, RDS, OpenSearch, ElastiCache, QLDB, KMS keys, IAM roles)."
+  },
+  "operationalConcerns": {
+    "configurationManagement": {
+      "environmentVariables": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "OPENSEARCH_ENDPOINT",
+        "S3_CONTENT_BUCKET",
+        "S3_PDF_BUCKET",
+        "QLDB_LEDGER_NAME",
+        "BEDROCK_MODEL_ARN",
+        "WORKOS_API_KEY",
+        "CONFLUENCE_OAUTH_CLIENT_SECRET",
+        "SESSION_SIGNING_KEY",
+        "AI_REVIEW_FAIL_CLOSED",
+        "ALLOW_LIST_BOOTSTRAP_S3_KEY"
+      ],
+      "databaseConfiguration": "Aurora Serverless v2: minACU 0.5 dev / 2 staging / 8 prod; maxACU 4 / 16 / 64; storage encryption with KMS; automated snapshot retention 35 days.",
+      "featureFlags": [
+        "ai_release_notes_enabled (default on)",
+        "ai_quality_score_enabled (default on; soft warning only)",
+        "ai_since_last_visit_enabled (default on)",
+        "sso_enabled_per_tenant (per-tenant)",
+        "ai_review_fail_closed (default on in prod, override forbidden in prod)"
+      ]
+    },
+    "healthChecks": [
+      {
+        "endpoint": "/health/live",
+        "purpose": "Liveness \u2014 process is responding",
+        "checks": [
+          "process is up",
+          "config loaded"
+        ]
+      },
+      {
+        "endpoint": "/health/ready",
+        "purpose": "Readiness \u2014 dependencies reachable",
+        "checks": [
+          "Aurora reachable",
+          "Redis reachable",
+          "downstream service reachable (per service)"
+        ]
+      },
+      {
+        "endpoint": "/health/ai",
+        "purpose": "AI Gateway only \u2014 Bedrock connectivity probe (no model call)",
+        "checks": [
+          "Bedrock client constructable",
+          "configured model ARN exists"
+        ]
+      }
+    ],
+    "logging": {
+      "destination": "Amazon CloudWatch Logs (per-service log group) + S3 long-term archive (1 yr) via Kinesis Firehose; tracked queries in QLDB for audit events.",
+      "retention": "CloudWatch: 30 days hot; Firehose-to-S3 with object-lock: 1 year. Audit events in QLDB \u2265 12 months then archived.",
+      "keyEvents": [
+        {
+          "event": "publish.complete",
+          "level": "info",
+          "trigger": "Publishing Pipeline persisted a version",
+          "fields": [
+            "document_id",
+            "version_id",
+            "duration_ms",
+            "ai_review_findings",
+            "tenant_scope"
+          ]
+        },
+        {
+          "event": "publish.failed",
+          "level": "error",
+          "trigger": "Publishing Pipeline failed at any stage",
+          "fields": [
+            "document_id",
+            "stage",
+            "reason",
+            "retry_count"
+          ]
+        },
+        {
+          "event": "ai.provider_unavailable",
+          "level": "error",
+          "trigger": "AI Gateway returned fail-closed",
+          "fields": [
+            "operation",
+            "provider",
+            "duration_ms",
+            "error_class"
+          ]
+        },
+        {
+          "event": "auth.login.success",
+          "level": "info",
+          "trigger": "Successful login",
+          "fields": [
+            "user_id",
+            "tenant_id",
+            "factor",
+            "ip",
+            "ua"
+          ]
+        },
+        {
+          "event": "auth.login.failure",
+          "level": "warn",
+          "trigger": "Failed login",
+          "fields": [
+            "user_id_or_email_hash",
+            "tenant_id",
+            "reason",
+            "ip"
+          ]
+        },
+        {
+          "event": "audit.integrity_check",
+          "level": "info",
+          "trigger": "Daily QLDB digest verification",
+          "fields": [
+            "verified_at",
+            "digest_match",
+            "anomalies"
+          ]
+        }
+      ]
+    },
+    "metrics": [
+      {
+        "name": "sync.approval_to_portal_seconds",
+        "type": "histogram",
+        "description": "End-to-end sync latency",
+        "alertThreshold": "p95 > 300s for 15m \u2192 page"
+      },
+      {
+        "name": "sync.ai_review_seconds",
+        "type": "histogram",
+        "description": "AI review pass duration",
+        "alertThreshold": "p95 > 30s for 15m \u2192 warn"
+      },
+      {
+        "name": "publish.success_total",
+        "type": "counter",
+        "description": "Successful publishes",
+        "alertThreshold": "rate-of-change < expected \u2192 warn"
+      },
+      {
+        "name": "publish.failed_total",
+        "type": "counter",
+        "description": "Failed publishes by stage",
+        "alertThreshold": "any > 5/min \u2192 page"
+      },
+      {
+        "name": "ai.provider_unavailable_total",
+        "type": "counter",
+        "description": "Fail-closed events",
+        "alertThreshold": "any > 0 sustained 5m \u2192 page"
+      },
+      {
+        "name": "portal.render_seconds",
+        "type": "histogram",
+        "description": "Portal page render",
+        "alertThreshold": "p95 > 1.5s for 15m \u2192 page"
+      },
+      {
+        "name": "search.query_seconds",
+        "type": "histogram",
+        "description": "Search query latency",
+        "alertThreshold": "p95 > 1s for 15m \u2192 warn"
+      },
+      {
+        "name": "auth.lockouts_total",
+        "type": "counter",
+        "description": "Account lockouts",
+        "alertThreshold": "rate > 10/min \u2192 security"
+      },
+      {
+        "name": "tenancy.cross_tenant_test_pass",
+        "type": "gauge",
+        "description": "1 if last cross-tenant test passed, 0 otherwise",
+        "alertThreshold": "value = 0 \u2192 page"
+      }
+    ],
+    "tracing": {
+      "implementation": "AWS X-Ray with OpenTelemetry-compatible SDK; propagation via W3C traceparent header",
+      "traceContext": "Inbound HTTP \u2192 x-request-id + traceparent; propagated across SQS, EventBridge, and Bedrock SDK calls; persisted in audit-event payloads for correlation."
+    },
+    "alerting": {
+      "channels": [
+        "PagerDuty (services)",
+        "Slack #docs-hub-alerts (warnings)",
+        "Email security@wsd.com (security-only)"
+      ],
+      "criticalAlerts": [
+        "ai.provider_unavailable_total sustained \u2014 fail-closed in effect, publishes halted",
+        "sync.approval_to_portal_seconds p95 > 300s \u2014 SLA breach",
+        "publish.failed_total > 5/min \u2014 pipeline degradation",
+        "auth.lockouts_total > 10/min \u2014 possible credential stuffing",
+        "tenancy.cross_tenant_test_pass = 0 \u2014 isolation regression \u2014 block deploys",
+        "audit.integrity_check digest_match = false \u2014 tampering or corruption"
+      ]
+    }
+  }
+}

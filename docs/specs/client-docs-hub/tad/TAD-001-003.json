@@ -1,0 +1,670 @@
+{
+  "tadId": "TAD-001-003",
+  "prdId": "PRD-001",
+  "version": "1.0.0",
+  "status": "draft",
+  "architecturalDecisions": [],
+  "generationMetadata": {
+    "comprehensiveness": "standard",
+    "sectionsGenerated": [
+      "dataArchitecture",
+      "integrationArchitecture"
+    ],
+    "totalLlmCalls": 0,
+    "totalInputTokens": 0,
+    "totalOutputTokens": 0,
+    "generatedAt": "2026-06-03T08:07:50Z"
+  },
+  "partInfo": {
+    "partNumber": 3,
+    "totalParts": 4,
+    "groupId": "data",
+    "groupName": "Data & Integration",
+    "sections": [
+      "dataArchitecture",
+      "integrationArchitecture"
+    ]
+  },
+  "createdAt": "2026-06-03T08:07:50Z",
+  "updatedAt": "2026-06-03T08:07:50Z",
+  "dataArchitecture": {
+    "dataStores": [
+      {
+        "name": "Primary RDBMS",
+        "technology": "Amazon Aurora PostgreSQL 15 (Serverless v2)",
+        "purpose": "System of record for tenants, users, documents metadata, version index, scope mappings, sync cursors, subscriptions, AI-review decisions.",
+        "dataTypes": [
+          "tenant",
+          "user",
+          "session",
+          "document",
+          "document_version (metadata)",
+          "scope_grant",
+          "sync_cursor",
+          "subscription",
+          "ai_finding",
+          "review_decision"
+        ],
+        "accessPatterns": [
+          "Row-Level Security policies bind queries to the active tenant_id",
+          "Read replicas serve Portal API hot reads",
+          "Primary handles writes from Publishing Pipeline + Auth + Notification"
+        ],
+        "scalingStrategy": "Aurora Serverless v2 ACUs scale automatically; read replicas added per environment based on load tests."
+      },
+      {
+        "name": "Content Blob Store",
+        "technology": "Amazon S3 (Object Lock enabled, versioning ON)",
+        "purpose": "Immutable rendered HTML per (document, version); generated PDFs (with TTL); original Confluence storage-format snapshots for audit.",
+        "dataTypes": [
+          "html_blob",
+          "pdf_blob",
+          "confluence_storage_snapshot"
+        ],
+        "accessPatterns": [
+          "Write-once at publish time; never modified",
+          "Read via pre-signed URLs (short TTL) from Portal API",
+          "Lifecycle: hot bucket \u2192 IA after 90 days for older versions"
+        ],
+        "scalingStrategy": "S3 elastic; no operational scaling work."
+      },
+      {
+        "name": "Search Index",
+        "technology": "Amazon OpenSearch managed",
+        "purpose": "Full-text search index of all published document versions, scoped per tenant via a non-overridable filter at the search-gateway.",
+        "dataTypes": [
+          "document_search_doc"
+        ],
+        "accessPatterns": [
+          "Index update at publish-complete event",
+          "Tenant filter injected at gateway; callers cannot bypass",
+          "Boosting by recency + title match"
+        ],
+        "scalingStrategy": "Multi-AZ with auto-tune; capacity sized per load tests; shard per tenant family."
+      },
+      {
+        "name": "Cache + Sessions",
+        "technology": "Amazon ElastiCache (Redis 7)",
+        "purpose": "Active sessions, rate-limit counters, per-user last-visited, hot document version render cache.",
+        "dataTypes": [
+          "session",
+          "rate_limit_counter",
+          "last_visited",
+          "render_cache_entry"
+        ],
+        "accessPatterns": [
+          "Sessions: read on every authenticated request",
+          "Render cache: read-through; invalidation event on publish-complete",
+          "Last-visited: write-behind to Postgres"
+        ],
+        "scalingStrategy": "Cluster mode with read replicas; sized per p95 throughput targets."
+      },
+      {
+        "name": "Audit Ledger",
+        "technology": "Amazon QLDB",
+        "purpose": "Tamper-evident append-only audit log for authentication, document view, admin action, AI review decision, sync re-trigger, unpublish.",
+        "dataTypes": [
+          "audit_event"
+        ],
+        "accessPatterns": [
+          "Write on every audit-relevant event via Audit Service",
+          "Read constrained to security + admin roles",
+          "Daily integrity verification job"
+        ],
+        "scalingStrategy": "QLDB managed; cold-archive to S3 with Object Lock after 12 months."
+      }
+    ],
+    "coreEntities": [
+      {
+        "name": "Tenant",
+        "description": "An isolated client workspace. The unit of access scope and billing.",
+        "fields": [
+          {
+            "name": "tenant_id",
+            "type": "uuid",
+            "required": true,
+            "description": "PK; surrogate; used as RLS key everywhere."
+          },
+          {
+            "name": "slug",
+            "type": "text",
+            "required": true,
+            "description": "Human-readable identifier used in Confluence scope labels (client:<slug>)."
+          },
+          {
+            "name": "display_name",
+            "type": "text",
+            "required": true,
+            "description": "Shown in UI and email footers."
+          },
+          {
+            "name": "sso_mode",
+            "type": "enum (none, saml, oidc)",
+            "required": true,
+            "description": "Drives login dispatch."
+          },
+          {
+            "name": "created_at",
+            "type": "timestamptz",
+            "required": true,
+            "description": "Provisioning timestamp."
+          }
+        ],
+        "relationships": [
+          "1:N \u2192 User",
+          "1:N \u2192 ScopeGrant",
+          "1:N \u2192 Subscription"
+        ],
+        "indexes": [
+          "pk(tenant_id)",
+          "unique(slug)"
+        ]
+      },
+      {
+        "name": "User",
+        "description": "An authenticated principal bound to one tenant.",
+        "fields": [
+          {
+            "name": "user_id",
+            "type": "uuid",
+            "required": true,
+            "description": "PK."
+          },
+          {
+            "name": "tenant_id",
+            "type": "uuid",
+            "required": true,
+            "description": "FK to Tenant. Sets RLS scope."
+          },
+          {
+            "name": "email",
+            "type": "citext",
+            "required": true,
+            "description": "Login identifier; unique within tenant."
+          },
+          {
+            "name": "role",
+            "type": "enum (reader, client_admin, wsd_doc_owner, wsd_reviewer, wsd_security)",
+            "required": true,
+            "description": "Authorization role."
+          },
+          {
+            "name": "password_hash",
+            "type": "text (argon2id)",
+            "required": false,
+            "description": "Null when SSO mode is active."
+          },
+          {
+            "name": "totp_enc",
+            "type": "bytea (KMS DEK)",
+            "required": false,
+            "description": "Encrypted TOTP secret."
+          },
+          {
+            "name": "status",
+            "type": "enum (active, disabled, removed)",
+            "required": true,
+            "description": "Lifecycle state."
+          }
+        ],
+        "relationships": [
+          "N:1 \u2192 Tenant"
+        ],
+        "indexes": [
+          "pk(user_id)",
+          "unique(tenant_id, email)",
+          "idx(status)"
+        ]
+      },
+      {
+        "name": "Document",
+        "description": "A published Confluence page. The document is the long-lived identity; versions are immutable snapshots beneath it.",
+        "fields": [
+          {
+            "name": "document_id",
+            "type": "uuid",
+            "required": true,
+            "description": "PK; deterministic from Confluence page ID."
+          },
+          {
+            "name": "confluence_page_id",
+            "type": "text",
+            "required": true,
+            "description": "Upstream identity."
+          },
+          {
+            "name": "product_label",
+            "type": "text",
+            "required": true,
+            "description": "Drives portal navigation grouping."
+          },
+          {
+            "name": "category_label",
+            "type": "text",
+            "required": false,
+            "description": "Sub-grouping within a product."
+          },
+          {
+            "name": "scope_mode",
+            "type": "enum (shared, client_specific)",
+            "required": true,
+            "description": "Visibility scope."
+          },
+          {
+            "name": "current_version_id",
+            "type": "uuid",
+            "required": false,
+            "description": "Pointer to the latest published version."
+          },
+          {
+            "name": "state",
+            "type": "enum (published, unpublished, blocked_on_review)",
+            "required": true,
+            "description": "Lifecycle."
+          }
+        ],
+        "relationships": [
+          "1:N \u2192 DocumentVersion",
+          "1:N \u2192 ScopeGrant (when client_specific)"
+        ],
+        "indexes": [
+          "pk(document_id)",
+          "unique(confluence_page_id)",
+          "idx(state, product_label)"
+        ]
+      },
+      {
+        "name": "DocumentVersion",
+        "description": "One immutable publish of a document. Binary content lives in S3.",
+        "fields": [
+          {
+            "name": "version_id",
+            "type": "uuid",
+            "required": true,
+            "description": "PK."
+          },
+          {
+            "name": "document_id",
+            "type": "uuid",
+            "required": true,
+            "description": "FK \u2192 Document."
+          },
+          {
+            "name": "source_version_id",
+            "type": "text",
+            "required": true,
+            "description": "Confluence revision number."
+          },
+          {
+            "name": "html_blob_s3_key",
+            "type": "text",
+            "required": true,
+            "description": "S3 key (immutable, object-lock)."
+          },
+          {
+            "name": "snapshot_blob_s3_key",
+            "type": "text",
+            "required": true,
+            "description": "Original Confluence storage format for audit."
+          },
+          {
+            "name": "publisher_id",
+            "type": "uuid",
+            "required": true,
+            "description": "FK \u2192 User (WSD doc owner)."
+          },
+          {
+            "name": "published_at",
+            "type": "timestamptz",
+            "required": true,
+            "description": "Publish timestamp."
+          },
+          {
+            "name": "review_decision_id",
+            "type": "uuid",
+            "required": true,
+            "description": "FK \u2192 ReviewDecision."
+          },
+          {
+            "name": "quality_scores_jsonb",
+            "type": "jsonb",
+            "required": false,
+            "description": "4-dimension scores."
+          }
+        ],
+        "relationships": [
+          "N:1 \u2192 Document",
+          "N:1 \u2192 User (publisher)",
+          "1:N \u2192 ReleaseNotes block"
+        ],
+        "indexes": [
+          "pk(version_id)",
+          "unique(document_id, source_version_id)",
+          "idx(document_id, published_at DESC)"
+        ]
+      },
+      {
+        "name": "ScopeGrant",
+        "description": "Joins a client-specific document to the tenant(s) entitled to read it. Shared documents do not have ScopeGrant rows.",
+        "fields": [
+          {
+            "name": "grant_id",
+            "type": "uuid",
+            "required": true,
+            "description": "PK."
+          },
+          {
+            "name": "document_id",
+            "type": "uuid",
+            "required": true,
+            "description": "FK \u2192 Document."
+          },
+          {
+            "name": "tenant_id",
+            "type": "uuid",
+            "required": true,
+            "description": "FK \u2192 Tenant."
+          },
+          {
+            "name": "granted_at",
+            "type": "timestamptz",
+            "required": true,
+            "description": "Provenance timestamp."
+          }
+        ],
+        "relationships": [
+          "N:1 \u2192 Document",
+          "N:1 \u2192 Tenant"
+        ],
+        "indexes": [
+          "pk(grant_id)",
+          "unique(document_id, tenant_id)"
+        ]
+      },
+      {
+        "name": "AIFinding",
+        "description": "A single AI-document-review finding raised against a document version.",
+        "fields": [
+          {
+            "name": "finding_id",
+            "type": "uuid",
+            "required": true,
+            "description": "PK."
+          },
+          {
+            "name": "version_id",
+            "type": "uuid",
+            "required": true,
+            "description": "FK \u2192 DocumentVersion."
+          },
+          {
+            "name": "category",
+            "type": "enum (secret, internal_url, internal_ticket, internal_email, missing_content, empty_section, stub)",
+            "required": true,
+            "description": "Finding category."
+          },
+          {
+            "name": "severity",
+            "type": "enum (low, medium, high)",
+            "required": true,
+            "description": "Drives publish gating."
+          },
+          {
+            "name": "matched_span",
+            "type": "jsonb",
+            "required": true,
+            "description": "Anchor location in the rendered HTML."
+          },
+          {
+            "name": "decision_id",
+            "type": "uuid",
+            "required": false,
+            "description": "FK \u2192 ReviewDecision when triaged."
+          }
+        ],
+        "relationships": [
+          "N:1 \u2192 DocumentVersion",
+          "N:1 \u2192 ReviewDecision (optional)"
+        ],
+        "indexes": [
+          "pk(finding_id)",
+          "idx(version_id, severity)"
+        ]
+      },
+      {
+        "name": "ReviewDecision",
+        "description": "A reviewer triage decision on a finding or release-notes block. Audit-logged.",
+        "fields": [
+          {
+            "name": "decision_id",
+            "type": "uuid",
+            "required": true,
+            "description": "PK."
+          },
+          {
+            "name": "actor_user_id",
+            "type": "uuid",
+            "required": true,
+            "description": "FK \u2192 User (reviewer)."
+          },
+          {
+            "name": "decision",
+            "type": "enum (ignore, acknowledge, block, approve_release_notes, reject_release_notes)",
+            "required": true,
+            "description": "Decision verb."
+          },
+          {
+            "name": "rationale_text",
+            "type": "text",
+            "required": false,
+            "description": "Reviewer-supplied note."
+          },
+          {
+            "name": "decided_at",
+            "type": "timestamptz",
+            "required": true,
+            "description": "Timestamp."
+          }
+        ],
+        "relationships": [
+          "1:1 \u2190 AIFinding (when triaging a finding)"
+        ],
+        "indexes": [
+          "pk(decision_id)",
+          "idx(actor_user_id, decided_at)"
+        ]
+      }
+    ],
+    "dataFlowDescription": "Sync flow: Confluence webhook \u2192 Lambda receiver verifies HMAC and enqueues into SQS publish-queue \u2192 Publishing Pipeline (Step Functions) pulls one event \u2192 applies allow-list + approval state \u2192 calls AI Gateway for document review \u2192 on clean review, renders HTML and writes the immutable blob to S3, the metadata row to Aurora, the search document to OpenSearch, and emits publish-complete on EventBridge \u2192 Notification Service consumes the event and assembles per-user digests. Read flow: client request hits CloudFront \u2192 Next.js Frontend (Fargate) \u2192 session validated via Auth Service \u2192 Portal API queries Aurora read replica for metadata, fetches the HTML blob from S3 (or Redis render cache), returns to the user. Per-user last-visited is written-behind to Postgres via Redis. Audit flow: every audit-relevant action across services emits an audit-event on EventBridge \u2192 Audit Service writes to QLDB. Daily integrity verification compares the QLDB digest against the prior recorded digest and pages security on mismatch.",
+    "cachingStrategy": "Three layers: CloudFront edge (cache-key includes tenant_id from auth context \u2014 done via Lambda@Edge so cross-tenant cache poisoning is impossible); Redis read-through cache for hot document versions and rendered HTML (TTL 1h, invalidated on publish-complete); Aurora read replicas absorb metadata reads. Cache invalidation on publish-complete is pushed to both CloudFront and Redis simultaneously.",
+    "dataRetention": "Document versions: last 20 retained per page in hot S3 storage; older versions metadata-only in Aurora with content garbage-collected. Audit log: \u2265 12 months in QLDB, then cold-archived to S3 Object-Lock-Compliance for the contractual retention window. Sessions: TTL bound to the session-timeout configuration. Last-visited per user: retained for the user's lifetime; erased on user removal."
+  },
+  "integrationArchitecture": {
+    "apiDesign": {
+      "pattern": "REST + Server-Sent Events for live progress (publish status in Admin UI); JSON over HTTPS; OpenAPI 3.1 specs versioned with services.",
+      "conventions": [
+        "All client-facing endpoints are HTTPS only, TLS 1.2+, HSTS 1-year",
+        "All endpoints carry an x-request-id; logs and audit join on this ID",
+        "Pagination is cursor-based (no offset/limit)",
+        "Error responses follow RFC 7807 Problem Details",
+        "Mutation endpoints require an Idempotency-Key header"
+      ],
+      "requestResponseFormat": "application/json (UTF-8) with explicit schemaVersion field on every payload."
+    },
+    "integrationContracts": [
+      {
+        "systemName": "Atlassian Confluence",
+        "purpose": "Source of truth; provides page content and change events.",
+        "protocol": "HTTPS REST (Confluence Cloud REST v2) + webhook callbacks",
+        "authentication": "OAuth 2.0 client credentials grant; rotating tokens stored in AWS Secrets Manager",
+        "operations": [
+          {
+            "name": "Page fetch by id+version",
+            "method": "GET",
+            "endpoint": "/wiki/api/v2/pages/{id}",
+            "requestSchema": "n/a",
+            "responseSchema": "ConfluencePageV2"
+          },
+          {
+            "name": "Page-changed webhook",
+            "method": "POST",
+            "endpoint": "(inbound to lambda/webhook-receiver)",
+            "requestSchema": "ConfluenceChangeEvent",
+            "responseSchema": "n/a"
+          },
+          {
+            "name": "Page list since cursor (polling)",
+            "method": "GET",
+            "endpoint": "/wiki/api/v2/pages?since=...",
+            "requestSchema": "n/a",
+            "responseSchema": "ConfluencePageListV2"
+          }
+        ],
+        "errorHandling": "Retry with exponential backoff on 5xx and 429; fail-closed (do not publish) on persistent error; dead-letter queue for poison events.",
+        "circuitBreaker": {
+          "enabled": true,
+          "failureThreshold": 5,
+          "resetTimeout": 60
+        },
+        "retryPolicy": {
+          "maxAttempts": 4,
+          "backoffType": "exponential",
+          "backoffBase": 2
+        }
+      },
+      {
+        "systemName": "Amazon Bedrock (Anthropic Claude)",
+        "purpose": "All AI functions: review, release notes, summaries, notifications, quality scoring.",
+        "protocol": "AWS SDK / Bedrock Runtime InvokeModel + ConverseStream",
+        "authentication": "IAM role with least-privilege Bedrock InvokeModel on the configured Claude model ARN(s)",
+        "operations": [
+          {
+            "name": "Document review",
+            "method": "POST",
+            "endpoint": "(AI Gateway) /ai/review",
+            "requestSchema": "DocumentReviewRequest",
+            "responseSchema": "DocumentReviewFindings"
+          },
+          {
+            "name": "Release notes",
+            "method": "POST",
+            "endpoint": "(AI Gateway) /ai/release-notes",
+            "requestSchema": "ReleaseNotesRequest",
+            "responseSchema": "ReleaseNotesDraft"
+          },
+          {
+            "name": "Notification / since-last-visit summary",
+            "method": "POST",
+            "endpoint": "(AI Gateway) /ai/summary",
+            "requestSchema": "SummaryRequest",
+            "responseSchema": "SummaryText"
+          },
+          {
+            "name": "Quality score",
+            "method": "POST",
+            "endpoint": "(AI Gateway) /ai/quality",
+            "requestSchema": "QualityScoreRequest",
+            "responseSchema": "QualityScoreResult"
+          }
+        ],
+        "errorHandling": "Fail closed: any Bedrock 5xx, timeout, or response-schema-mismatch causes the AI Gateway to return a structured 'provider-unavailable' error; pipeline halts the publish.",
+        "circuitBreaker": {
+          "enabled": true,
+          "failureThreshold": 10,
+          "resetTimeout": 120
+        },
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "backoffType": "exponential",
+          "backoffBase": 2
+        }
+      },
+      {
+        "systemName": "Amazon SES",
+        "purpose": "Send notification emails (digest and breaking-change) and operational mail (invitations, password reset).",
+        "protocol": "AWS SDK (SendEmail / SendRawEmail)",
+        "authentication": "IAM role with SES SendEmail on the docs.wsd.com identity",
+        "operations": [
+          {
+            "name": "Send notification email",
+            "method": "POST",
+            "endpoint": "(SES) SendEmail",
+            "requestSchema": "SesSendEmailRequest",
+            "responseSchema": "SesSendEmailResponse"
+          },
+          {
+            "name": "Send invitation email",
+            "method": "POST",
+            "endpoint": "(SES) SendEmail",
+            "requestSchema": "SesSendEmailRequest",
+            "responseSchema": "SesSendEmailResponse"
+          }
+        ],
+        "errorHandling": "Retry transient throttling; dead-letter to SQS for manual investigation on persistent failure; bounces and complaints feed back to Notification Service to suppress affected addresses.",
+        "circuitBreaker": {
+          "enabled": true,
+          "failureThreshold": 50,
+          "resetTimeout": 60
+        },
+        "retryPolicy": {
+          "maxAttempts": 5,
+          "backoffType": "exponential",
+          "backoffBase": 2
+        }
+      },
+      {
+        "systemName": "WorkOS",
+        "purpose": "SAML 2.0 / OIDC SSO mediation for client tenants requiring enterprise login.",
+        "protocol": "HTTPS REST",
+        "authentication": "WorkOS API key in AWS Secrets Manager",
+        "operations": [
+          {
+            "name": "Get authorization URL",
+            "method": "GET",
+            "endpoint": "(WorkOS) /sso/authorize",
+            "requestSchema": "WorkOsAuthorizeRequest",
+            "responseSchema": "WorkOsAuthorizeResponse"
+          },
+          {
+            "name": "Exchange code for profile",
+            "method": "POST",
+            "endpoint": "(WorkOS) /sso/token",
+            "requestSchema": "WorkOsTokenRequest",
+            "responseSchema": "WorkOsProfile"
+          }
+        ],
+        "errorHandling": "Surface a generic 'SSO unavailable' error to the user; fall back to support contact, never to password login on a SSO-enabled tenant.",
+        "circuitBreaker": {
+          "enabled": true,
+          "failureThreshold": 5,
+          "resetTimeout": 60
+        },
+        "retryPolicy": {
+          "maxAttempts": 2,
+          "backoffType": "linear",
+          "backoffBase": 1
+        }
+      }
+    ],
+    "messagingPatterns": [
+      "EventBridge for cross-service domain events (publish-complete, audit-event, user-disabled)",
+      "SQS for ordered work-queues (publish-queue, notification-queue, dead-letter queues per consumer)",
+      "Step Functions for the publishing pipeline state machine (visibility + retry semantics)"
+    ],
+    "eventDrivenArchitecture": {
+      "enabled": true,
+      "eventBus": "Amazon EventBridge (default + dedicated bus per env)",
+      "eventTypes": [
+        "page-change",
+        "publish-complete",
+        "publish-failed",
+        "ai-review-pending-provider",
+        "audit-event",
+        "user-invited",
+        "user-disabled",
+        "user-removed",
+        "breaking-change-notification-pending-review"
+      ]
+    }
+  }
+}

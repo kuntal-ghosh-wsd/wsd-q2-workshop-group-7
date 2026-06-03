@@ -1,0 +1,456 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "product-spec-tad",
+  "title": "Technical Architecture Document",
+  "description": "TAD JSON format produced by the product-spec-pipeline skill. Single TAD-XXX-001 or split into up to 4 parts.",
+  "type": "object",
+  "required": ["tadId", "prdId", "version", "status", "architecturalDecisions", "generationMetadata", "createdAt", "updatedAt"],
+  "properties": {
+    "tadId": { "type": "string", "pattern": "^TAD-\\d{3,}(-\\d{3,})?$" },
+    "prdId": { "type": "string", "pattern": "^PRD-\\d{3,}$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "status": { "type": "string", "enum": ["draft"] },
+    "extractedConcerns": { "type": "object" },
+    "systemOverview": {
+      "type": "object",
+      "required": ["executiveSummary", "systemPurpose", "architecturalApproach", "keyCapabilities", "externalDependencies", "assumptionsAndConstraints"],
+      "properties": {
+        "executiveSummary": { "type": "string", "minLength": 1 },
+        "systemPurpose": { "type": "string", "minLength": 1 },
+        "architecturalApproach": { "type": "string", "minLength": 1 },
+        "keyCapabilities": { "type": "array", "items": { "type": "string" } },
+        "contextDiagram": { "type": "string" },
+        "externalDependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["system", "purpose", "protocol"],
+            "properties": {
+              "system": { "type": "string" },
+              "purpose": { "type": "string" },
+              "protocol": { "type": "string" },
+              "owner": { "type": "string" }
+            }
+          }
+        },
+        "assumptionsAndConstraints": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "architecturePrinciples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description", "rationale", "implications"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "rationale": { "type": "string" },
+          "implications": { "type": "array", "items": { "type": "string" } },
+          "relatedReqs": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "purpose", "dependencies", "keyPatterns", "interfaces", "responsibilities"],
+        "properties": {
+          "name": { "type": "string" },
+          "purpose": { "type": "string" },
+          "location": { "type": "string" },
+          "dependencies": { "type": "array", "items": { "type": "string" } },
+          "keyPatterns": { "type": "array", "items": { "type": "string" } },
+          "interfaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type", "description"],
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": "string", "enum": ["api", "event", "sync", "internal"] },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "responsibilities": { "type": "array", "items": { "type": "string" } },
+          "relatedReqs": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "dataArchitecture": {
+      "type": "object",
+      "required": ["dataStores", "coreEntities", "dataFlowDescription"],
+      "properties": {
+        "dataStores": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "technology", "purpose", "dataTypes"],
+            "properties": {
+              "name": { "type": "string" },
+              "technology": { "type": "string" },
+              "purpose": { "type": "string" },
+              "dataTypes": { "type": "array", "items": { "type": "string" } },
+              "accessPatterns": { "type": "array", "items": { "type": "string" } },
+              "scalingStrategy": { "type": "string" }
+            }
+          }
+        },
+        "coreEntities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "description", "fields", "relationships"],
+            "properties": {
+              "name": { "type": "string" },
+              "description": { "type": "string" },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "type"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "type": { "type": "string" },
+                    "description": { "type": "string" },
+                    "required": { "type": "boolean" }
+                  }
+                }
+              },
+              "relationships": { "type": "array", "items": { "type": "string" } },
+              "indexes": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "dataFlowDescription": { "type": "string" },
+        "dataFlowDiagram": { "type": "string" },
+        "cachingStrategy": { "type": "string" },
+        "dataRetention": { "type": "string" }
+      }
+    },
+    "integrationArchitecture": {
+      "type": "object",
+      "required": ["apiDesign", "integrationContracts"],
+      "properties": {
+        "apiDesign": {
+          "type": "object",
+          "required": ["pattern", "conventions"],
+          "properties": {
+            "pattern": { "type": "string" },
+            "conventions": { "type": "array", "items": { "type": "string" } },
+            "requestResponseFormat": { "type": "string" }
+          }
+        },
+        "integrationContracts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["systemName", "purpose", "protocol", "authentication", "operations", "errorHandling"],
+            "properties": {
+              "systemName": { "type": "string" },
+              "purpose": { "type": "string" },
+              "protocol": { "type": "string" },
+              "authentication": { "type": "string" },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "method", "endpoint"],
+                  "properties": {
+                    "name": { "type": "string" },
+                    "method": { "type": "string" },
+                    "endpoint": { "type": "string" },
+                    "requestSchema": { "type": "string" },
+                    "responseSchema": { "type": "string" }
+                  }
+                }
+              },
+              "errorHandling": { "type": "string" },
+              "circuitBreaker": {
+                "type": "object",
+                "properties": {
+                  "enabled": { "type": "boolean" },
+                  "failureThreshold": { "type": "integer" },
+                  "resetTimeout": { "type": "integer" }
+                }
+              },
+              "retryPolicy": {
+                "type": "object",
+                "properties": {
+                  "maxAttempts": { "type": "integer" },
+                  "backoffType": { "type": "string", "enum": ["exponential", "linear", "fixed"] },
+                  "backoffBase": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "messagingPatterns": { "type": "array", "items": { "type": "string" } },
+        "eventDrivenArchitecture": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "eventBus": { "type": "string" },
+            "eventTypes": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "securityArchitecture": {
+      "type": "object",
+      "required": ["securityBoundaries", "authenticationPattern", "authorizationModel", "securityControls", "sensitiveDataHandling"],
+      "properties": {
+        "securityBoundaries": { "type": "string" },
+        "securityBoundaryDiagram": { "type": "string" },
+        "authenticationPattern": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string" },
+            "flow": { "type": "string" },
+            "tokenStructure": { "type": "string" }
+          }
+        },
+        "authorizationModel": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string" },
+            "roleMapping": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["role", "permissions"],
+                "properties": {
+                  "role": { "type": "string" },
+                  "permissions": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "securityControls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["control", "implementation", "location"],
+            "properties": {
+              "control": { "type": "string" },
+              "implementation": { "type": "string" },
+              "location": { "type": "string" },
+              "relatedReqs": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "sensitiveDataHandling": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["dataType", "classification", "handling"],
+            "properties": {
+              "dataType": { "type": "string" },
+              "classification": { "type": "string" },
+              "handling": { "type": "string" }
+            }
+          }
+        },
+        "complianceRequirements": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "deploymentArchitecture": {
+      "type": "object",
+      "required": ["targetEnvironment", "scalingStrategy", "resourceRequirements"],
+      "properties": {
+        "targetEnvironment": {
+          "type": "object",
+          "required": ["platform", "topology"],
+          "properties": {
+            "platform": { "type": "string" },
+            "topology": { "type": "string" },
+            "topologyDiagram": { "type": "string" },
+            "environmentVariables": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "description"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "sensitive": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "scalingStrategy": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["component", "minInstances", "maxInstances", "scalingTrigger"],
+            "properties": {
+              "component": { "type": "string" },
+              "minInstances": { "type": "integer" },
+              "maxInstances": { "type": "integer" },
+              "scalingTrigger": { "type": "string" }
+            }
+          }
+        },
+        "resourceRequirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["component", "cpuRequest", "cpuLimit", "memoryRequest", "memoryLimit"],
+            "properties": {
+              "component": { "type": "string" },
+              "cpuRequest": { "type": "string" },
+              "cpuLimit": { "type": "string" },
+              "memoryRequest": { "type": "string" },
+              "memoryLimit": { "type": "string" }
+            }
+          }
+        },
+        "containerization": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "baseImage": { "type": "string" },
+            "buildStrategy": { "type": "string" }
+          }
+        },
+        "cicdPipeline": { "type": "string" }
+      }
+    },
+    "operationalConcerns": {
+      "type": "object",
+      "required": ["configurationManagement", "healthChecks", "logging", "metrics"],
+      "properties": {
+        "configurationManagement": {
+          "type": "object",
+          "required": ["environmentVariables"],
+          "properties": {
+            "environmentVariables": { "type": "array", "items": { "type": "string" } },
+            "databaseConfiguration": { "type": "string" },
+            "featureFlags": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "healthChecks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["endpoint", "purpose", "checks"],
+            "properties": {
+              "endpoint": { "type": "string" },
+              "purpose": { "type": "string" },
+              "checks": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "logging": {
+          "type": "object",
+          "required": ["destination", "retention", "keyEvents"],
+          "properties": {
+            "destination": { "type": "string" },
+            "retention": { "type": "string" },
+            "keyEvents": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["event", "level", "trigger", "fields"],
+                "properties": {
+                  "event": { "type": "string" },
+                  "level": { "type": "string" },
+                  "trigger": { "type": "string" },
+                  "fields": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type", "description"],
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string", "enum": ["counter", "gauge", "histogram", "summary"] },
+              "description": { "type": "string" },
+              "alertThreshold": { "type": "string" }
+            }
+          }
+        },
+        "tracing": {
+          "type": "object",
+          "properties": {
+            "implementation": { "type": "string" },
+            "traceContext": { "type": "string" }
+          }
+        },
+        "alerting": {
+          "type": "object",
+          "properties": {
+            "channels": { "type": "array", "items": { "type": "string" } },
+            "criticalAlerts": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "architecturalDecisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "status", "context", "optionsConsidered", "decision", "rationale", "consequences"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^ADR-\\d{3,}$" },
+          "title": { "type": "string" },
+          "status": { "type": "string", "enum": ["proposed", "accepted", "deprecated", "superseded"] },
+          "context": { "type": "string" },
+          "optionsConsidered": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["option", "pros", "cons"],
+              "properties": {
+                "option": { "type": "string" },
+                "pros": { "type": "array", "items": { "type": "string" } },
+                "cons": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "decision": { "type": "string" },
+          "rationale": { "type": "string" },
+          "consequences": { "type": "array", "items": { "type": "string" } },
+          "relatedReqs": { "type": "array", "items": { "type": "string" } },
+          "relatedDecisions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "partInfo": {
+      "type": "object",
+      "required": ["partNumber", "totalParts", "groupId", "groupName", "sections"],
+      "properties": {
+        "partNumber": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "totalParts": { "type": "integer", "minimum": 1, "maximum": 4 },
+        "groupId": { "type": "string", "enum": ["overview", "components", "data", "operations"] },
+        "groupName": { "type": "string" },
+        "sections": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "generationMetadata": {
+      "type": "object",
+      "required": ["comprehensiveness", "sectionsGenerated", "totalLlmCalls", "totalInputTokens", "totalOutputTokens", "generatedAt"],
+      "properties": {
+        "comprehensiveness": { "type": "string", "enum": ["simple", "standard", "comprehensive"] },
+        "sectionsGenerated": { "type": "array", "items": { "type": "string" } },
+        "totalLlmCalls": { "type": "integer" },
+        "totalInputTokens": { "type": "integer" },
+        "totalOutputTokens": { "type": "integer" },
+        "generatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "feature": "client-docs-hub",
+  "description": "Client Documentation Hub (docs.wsd.com) \u2014 a secure, AI-assisted client-facing portal that automatically publishes approved Confluence pages, gates sensitive content via AI review, and notifies clients of changes.",
+  "prd": {
+    "id": "PRD-001",
+    "name": "Client Documentation Hub",
+    "path": "prd/PRD-001.json",
+    "markdownPath": "prd/PRD.md",
+    "stories": [
+      {
+        "id": "STD-001",
+        "path": "user-stories/PRD-001-user-stories.json",
+        "markdownPath": "user-stories/USER-STORIES.md"
+      }
+    ],
+    "tad": [
+      {
+        "id": "TAD-001-001",
+        "name": "Overview & Principles",
+        "path": "tad/TAD-001-001.json"
+      },
+      {
+        "id": "TAD-001-002",
+        "name": "Components",
+        "path": "tad/TAD-001-002.json"
+      },
+      {
+        "id": "TAD-001-003",
+        "name": "Data & Integration",
+        "path": "tad/TAD-001-003.json"
+      },
+      {
+        "id": "TAD-001-004",
+        "name": "Security, Deploy, Ops & ADRs",
+        "path": "tad/TAD-001-004.json"
+      }
+    ],
+    "tadMarkdownPath": "tad/TAD.md",
+    "bs": [
+      {
+        "id": "BS-001",
+        "path": "build-sequence/BS-001.json",
+        "markdownPath": "build-sequence/BUILD-SEQUENCE.md"
+      }
+    ]
+  }
+}

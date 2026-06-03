@@ -1,0 +1,669 @@
+{
+  "tadId": "TAD-001-001",
+  "prdId": "PRD-001",
+  "version": "1.0.0",
+  "status": "draft",
+  "architecturalDecisions": [],
+  "generationMetadata": {
+    "comprehensiveness": "standard",
+    "sectionsGenerated": [
+      "systemOverview",
+      "architecturePrinciples",
+      "extractedConcerns"
+    ],
+    "totalLlmCalls": 0,
+    "totalInputTokens": 0,
+    "totalOutputTokens": 0,
+    "generatedAt": "2026-06-03T08:07:50Z"
+  },
+  "partInfo": {
+    "partNumber": 1,
+    "totalParts": 4,
+    "groupId": "overview",
+    "groupName": "Overview & Principles",
+    "sections": [
+      "systemOverview",
+      "architecturePrinciples",
+      "extractedConcerns"
+    ]
+  },
+  "createdAt": "2026-06-03T08:07:50Z",
+  "updatedAt": "2026-06-03T08:07:50Z",
+  "extractedConcerns": {
+    "sourceDocuments": {
+      "prdId": "PRD-001",
+      "prdVersion": "1.0.0",
+      "userStoriesId": "PRD-001",
+      "userStoriesVersion": "1.0.0",
+      "extractedAt": "2026-06-03T08:07:50Z"
+    },
+    "productContext": {
+      "productName": "Client Documentation Hub",
+      "problemStatement": "WSD authors documentation in Confluence but delivers it to clients as PDFs that are exported, emailed, and version-chased manually for every release. Guest Confluence access and per-client Confluence spaces have been tried and do not scale, producing stale PDFs in client hands, hours of manual distribution work per release, no auditable record of who saw which version, and a split source of truth between Confluence and the latest emailed PDF.",
+      "targetUsers": [
+        "Client end users (engineers, integrators, operators at WSD client companies) who read product, API, and integration documentation",
+        "WSD documentation owners who author and tag pages in Confluence and approve them for publication",
+        "WSD release and publishing reviewers who approve AI screening results and AI-generated release notes before they reach clients",
+        "Client admins who manage which of their team members can access the client's portal account",
+        "WSD security and compliance staff who consume audit logs to demonstrate access control and content review"
+      ],
+      "scope": {
+        "inScope": [
+          "Selective sync of approved Confluence pages via configurable label / tag and space allow-list",
+          "Approval-state gating: only pages flagged as approved in Confluence are eligible for publication",
+          "Near real-time publishing with p95 end-to-end latency under 5 minutes from approval to portal visibility",
+          "Immutable per-page version history with at least the last 20 versions retained",
+          "Manual sync re-trigger and unpublish actions for doc owners, audit-logged",
+          "Secure multi-tenant authentication with password + second factor, optional SAML 2.0 / OIDC SSO",
+          "Per-client access scoping with shared and client-specific document visibility",
+          "Client-admin role for tenant-level user lifecycle (invite, disable, remove)",
+          "Audit log of authentication, document views, and admin actions, retained \u2265 12 months",
+          "Browsable portal organised by product and guide category derived from Confluence labels",
+          "Per-page version history view with diff against latest",
+          "Per-page on-demand PDF generation of any version",
+          "Full-text search scoped to the user's entitled documents",
+          "Per-user 'last visited' tracking driving AI change-summary feature",
+          "Email notifications on documentation changes with configurable cadence (immediate / daily / weekly)",
+          "Pre-publish AI document review screening for secrets, internal URLs, Jira links, internal emails, and structurally missing content",
+          "Hard block on high-severity AI findings until reviewer confirms false positive or page is corrected",
+          "AI-authored release notes (What's New / Breaking Changes / Recommended Actions) with reviewer approval gate",
+          "Per-client 'Since your last visit' AI change summary on the portal landing page",
+          "AI-generated client notification email summaries, reviewer-approved when breaking",
+          "AI documentation quality scoring (completeness / readability / missing examples / missing API responses) as soft warnings",
+          "Responsive web portal accessible on modern desktop and tablet browsers"
+        ],
+        "outOfScope": [
+          "Replacing Confluence as the authoring tool",
+          "Two-way sync; portal content is read-only relative to Confluence",
+          "Public (unauthenticated) documentation pages",
+          "In-portal AI chat assistant ('ask the docs') \u2014 Phase 3",
+          "Per-client usage analytics dashboards and client-impact analysis \u2014 Phase 3",
+          "Authoring or editing documentation from inside the portal",
+          "Multilingual translation of documentation; English-only first release",
+          "Mobile-native applications; responsive web only",
+          "Migration of historical PDF artefacts into the portal's version history",
+          "Integration with non-Confluence content sources (Notion, Google Docs, GitHub markdown) for first release",
+          "Quality-score trend dashboards beyond a per-page warning surface in v1"
+        ]
+      }
+    },
+    "functionalRequirements": [
+      {
+        "reqId": "REQ-001",
+        "title": "Selective Confluence sync via tag / space allow-list",
+        "description": "The system shall sync Confluence pages to the portal selectively, driven by a configurable allow-list of Confluence labels / tags and source spaces, so that only intentionally-tagged pages are eligible for publication. The allow-list shall be maintained by a documentation administrator and changes shall take effect on the next sync cycle without requiring a deploy.",
+        "category": "Confluence Sync & Publishing",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-002",
+        "title": "Approval-state gating",
+        "description": "The system shall only publish pages that are in an 'approved' state, determined by a configurable approval signal in Confluence (label, page status, or workflow state), and shall reject draft / in-review pages from publishing. Pages that lose their approval state after publish shall be unpublished on the next sync.",
+        "category": "Confluence Sync & Publishing",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-003",
+        "title": "Near real-time publishing",
+        "description": "The system shall detect Confluence page changes and publish updates to the portal in near real-time, with p95 end-to-end latency under 5 minutes from approval to portal visibility. The sync mechanism shall use Confluence change events (webhooks) where available and fall back to polling on a configurable interval.",
+        "category": "Confluence Sync & Publishing",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-004",
+        "title": "Per-page version history",
+        "description": "The system shall maintain a version history for every published page, retaining at minimum the last 20 versions per page, each with its publish timestamp, source Confluence version ID, and the publisher's identity. Versions shall be immutable once published.",
+        "category": "Confluence Sync & Publishing",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-005",
+        "title": "Preserve Confluence page structure on publish",
+        "description": "The system shall preserve Confluence page structure on publish: headings, lists, tables, code blocks, inline images, and internal cross-links between published pages. Cross-links to non-published pages shall be rewritten to a clear 'not available' state rather than broken or leaking to Confluence.",
+        "category": "Confluence Sync & Publishing",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-006",
+        "title": "Manual sync re-trigger",
+        "description": "The system shall allow a documentation owner to manually re-trigger sync of an individual page or a tag set from an admin UI when an automatic sync is suspected to have been missed, with the action audit-logged.",
+        "category": "Confluence Sync & Publishing",
+        "priority": "should",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-007",
+        "title": "Unpublish without deleting from Confluence",
+        "description": "The system shall support unpublishing a page (removal from the portal) without deleting it from Confluence, with an audit-logged reason supplied by the operator. An unpublished page remains in the version history but is not reachable from the portal browse / search.",
+        "category": "Confluence Sync & Publishing",
+        "priority": "should",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-010",
+        "title": "Authentication required for all portal pages",
+        "description": "The system shall require authenticated login for every portal page; no documentation content shall be reachable unauthenticated. Unauthenticated requests shall be redirected to the login flow, preserving the intended destination.",
+        "category": "Authentication & Access Control",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-011",
+        "title": "Secure login with second factor",
+        "description": "The system shall support a secure login flow with password + second factor (TOTP or email magic link), with industry-standard session handling: HTTP-only Secure cookies, CSRF protection, idempotent logout, configurable session timeout, and brute-force protection (account lockout / rate limiting).",
+        "category": "Authentication & Access Control",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-012",
+        "title": "Per-client access scoping",
+        "description": "The system shall enforce per-client access scoping: a logged-in user belongs to one client tenant, and the portal shall only render documents marked as shared or as scoped to that client. Access scoping is enforced at the data-access layer, not only in the UI.",
+        "category": "Authentication & Access Control",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-013",
+        "title": "Shared vs client-specific document visibility",
+        "description": "The system shall support two document visibility scopes: 'shared' (visible to all authenticated clients) and 'client-specific' (visible only to the named client(s)), with scope set per Confluence page via a label or page property as defined by the publish convention.",
+        "category": "Authentication & Access Control",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-014",
+        "title": "Client-admin role for tenant user lifecycle",
+        "description": "The system shall provide a client-admin role allowing a designated client contact to invite, disable, and remove users within their own client tenant without WSD intervention. Client-admin actions are scoped to the admin's own tenant and audit-logged.",
+        "category": "Authentication & Access Control",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-015",
+        "title": "Enterprise SSO via SAML / OIDC",
+        "description": "The system shall support SSO via SAML 2.0 or OIDC for client tenants that require enterprise login. SSO configuration is per tenant and, when enabled, replaces password + second factor for that tenant's users.",
+        "category": "Authentication & Access Control",
+        "priority": "should",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-016",
+        "title": "Audit log of auth, view, and admin actions",
+        "description": "The system shall maintain an audit log of every authentication event (success / failure / lockout), every document view, and every administrative action (invite, role change, scope change, unpublish, sync re-trigger, AI review decision), retained for at least 12 months.",
+        "category": "Authentication & Access Control",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-020",
+        "title": "Browse navigation by product and guide category",
+        "description": "The portal shall present a browsable navigation grouped by product and guide category, derived from the source Confluence label / page hierarchy. The grouping shall be deterministic for the same set of labels so reviewers can predict where a page will appear.",
+        "category": "Client Portal",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-021",
+        "title": "Latest version is the default view",
+        "description": "The portal shall render the latest published version of a page as the default view, with the page's last-updated timestamp visible and a clear visual indicator that this is the current version.",
+        "category": "Client Portal",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-022",
+        "title": "Version history view with diff",
+        "description": "The portal shall expose a per-page version history view, allowing the user to read any previous published version and to diff it against the latest. The diff shall highlight added, removed, and changed content at the block level.",
+        "category": "Client Portal",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-023",
+        "title": "Per-page PDF download",
+        "description": "The portal shall provide a per-page 'Download as PDF' action that generates a styled PDF of the currently-viewed version on demand. The PDF shall include the document title, version, timestamp, and client identity in a footer for audit.",
+        "category": "Client Portal",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-024",
+        "title": "Scoped full-text search",
+        "description": "The portal shall provide full-text search scoped to the documents the logged-in user is permitted to see, with results ranked by relevance and filterable by product. Search results that would expose document titles a user is not entitled to see shall be excluded.",
+        "category": "Client Portal",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-025",
+        "title": "Per-user 'last visited' tracking",
+        "description": "The portal shall remember a per-user 'last visited' timestamp per page so that the AI change-summary feature can show 'what's new since you last looked'. Tracking is per user, not per tenant, and is treated as personal data subject to the same retention policy.",
+        "category": "Client Portal",
+        "priority": "should",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-030",
+        "title": "Email notifications on documentation changes",
+        "description": "The system shall notify subscribed client users by email when documentation they are entitled to see has changed since the last digest, with a configurable digest cadence per user: immediate, daily, or weekly. Notifications respect the access scope; no user receives an email about a page they cannot read.",
+        "category": "Notifications",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-031",
+        "title": "Release-highlights summary in notification email",
+        "description": "Each notification email shall include a release-highlights summary and a deep link into the portal for each changed page. The summary text is produced by the AI client-notification feature (REQ-053); REQ-031 covers the structural email content.",
+        "category": "Notifications",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-032",
+        "title": "Self-service notification preferences",
+        "description": "Client users shall be able to manage their own notification preferences (cadence, per-product subscription, mute) from a profile page without contacting WSD.",
+        "category": "Notifications",
+        "priority": "should",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-040",
+        "title": "Pre-publish AI document review",
+        "description": "Before a page is published, the system shall run an AI document-review pass that flags: secrets / credentials / API keys, internal-only URLs, Jira / internal-ticket links, internal employee email addresses, and structurally missing content (e.g. empty sections, placeholders such as 'TODO', 'TBD', 'lorem ipsum'). The pipeline shall fail closed on AI provider unavailability.",
+        "category": "AI Document Review",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-041",
+        "title": "Hard block on high-severity AI findings",
+        "description": "A page that triggers any high-severity AI review finding (secrets, internal URLs, Jira links, internal email addresses) shall be blocked from publishing until either a reviewer explicitly confirms a false positive or the page is corrected in Confluence and re-synced. A blocked page shall surface a clear actionable state to the doc owner.",
+        "category": "AI Document Review",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-042",
+        "title": "Reviewer view of AI findings in context",
+        "description": "The AI review result shall be shown to the publishing reviewer with the matched span highlighted in context and a per-finding 'ignore / acknowledge / block' action, with all decisions audit-logged including reviewer identity, timestamp, and per-finding choice.",
+        "category": "AI Document Review",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-050",
+        "title": "AI release notes per page change",
+        "description": "When a published page changes, the system shall generate AI-authored release notes for that page covering three sections: What's New, Breaking Changes, and Recommended Actions. The docs team approves before clients see them; release notes do not auto-publish on first generation.",
+        "category": "AI Release Notes & Change Summary",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-051",
+        "title": "Per-client 'Since your last visit' summary",
+        "description": "On a client's portal landing page, the system shall show a per-client 'Since your last visit' summary, AI-generated from the diff of pages they are entitled to see and have not yet viewed in the latest version. The summary is regenerated on landing-page load when underlying changes have occurred.",
+        "category": "AI Release Notes & Change Summary",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-052",
+        "title": "Reviewer can regenerate, edit, or discard AI release notes",
+        "description": "The system shall let a reviewer regenerate, edit inline, or discard any AI-generated release-notes block before it is published. Edits are preserved on subsequent regeneration prompts unless the reviewer explicitly discards them.",
+        "category": "AI Release Notes & Change Summary",
+        "priority": "should",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-053",
+        "title": "AI-generated client notification email summaries",
+        "description": "Notification emails sent under REQ-030 shall use AI-generated concise summaries (e.g. 'Store API updated. New inventory APIs added. No action required.'), generated per client based on the changes they are entitled to see. Summaries flagged as breaking shall be reviewer-approved before send; non-breaking summaries may send automatically.",
+        "category": "AI Client Notifications",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-054",
+        "title": "AI documentation quality scoring",
+        "description": "Before publish, the system shall score each page on Completeness, Readability, Missing Examples, and Missing API Responses, surfacing the scores to the doc owner. Low scores produce warnings, not hard blocks; doc owners can publish anyway and the score is recorded in the audit trail.",
+        "category": "AI Documentation Quality Check",
+        "priority": "should",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-055",
+        "title": "Quality-score trend per page",
+        "description": "The system shall trend quality scores over time per page so doc owners can see documentation health regressing or improving across publishes.",
+        "category": "AI Documentation Quality Check",
+        "priority": "could",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-102",
+        "title": "Encryption in transit and at rest",
+        "description": "All client data in transit shall use TLS 1.2 or higher; all authentication tokens, session cookies, and AI-pipeline payloads (including draft pages awaiting review) shall be encrypted at rest using platform-standard KMS-managed keys.",
+        "category": "Data Protection",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-103",
+        "title": "Per-client data isolation at data-access layer",
+        "description": "Per-client data isolation shall be enforced at the data-access layer; no portal endpoint may return content scoped to a client other than the requesting user's client, even under URL manipulation, parameter tampering, or direct API access. Tenant isolation shall be validated by automated test on every release.",
+        "category": "Data Protection",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-105",
+        "title": "AI review pipeline fails closed",
+        "description": "The AI document-review pipeline shall fail closed: if an AI provider is unavailable or returns a non-conclusive result, pages remain unpublished and a reviewer is alerted; pages shall not bypass screening regardless of operator pressure.",
+        "category": "AI Document Review",
+        "priority": "must",
+        "architecturalImplications": []
+      },
+      {
+        "reqId": "REQ-107",
+        "title": "Tamper-evident audit log retention",
+        "description": "Audit logs (authentication, document view, admin actions, AI review decisions, sync re-trigger, unpublish) shall be tamper-evident \u2014 append-only or cryptographically signed \u2014 and retained for at least 12 months in a separate storage tier with restricted access.",
+        "category": "Audit & Compliance",
+        "priority": "must",
+        "architecturalImplications": []
+      }
+    ],
+    "nonFunctionalRequirements": [
+      {
+        "reqId": "REQ-010",
+        "title": "Authentication required for all portal pages",
+        "description": "The system shall require authenticated login for every portal page; no documentation content shall be reachable unauthenticated. Unauthenticated requests shall be redirected to the login flow, preserving the intended destination.",
+        "category": "Authentication & Access Control",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-011",
+        "title": "Secure login with second factor",
+        "description": "The system shall support a secure login flow with password + second factor (TOTP or email magic link), with industry-standard session handling: HTTP-only Secure cookies, CSRF protection, idempotent logout, configurable session timeout, and brute-force protection (account lockout / rate limiting).",
+        "category": "Authentication & Access Control",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-012",
+        "title": "Per-client access scoping",
+        "description": "The system shall enforce per-client access scoping: a logged-in user belongs to one client tenant, and the portal shall only render documents marked as shared or as scoped to that client. Access scoping is enforced at the data-access layer, not only in the UI.",
+        "category": "Authentication & Access Control",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-015",
+        "title": "Enterprise SSO via SAML / OIDC",
+        "description": "The system shall support SSO via SAML 2.0 or OIDC for client tenants that require enterprise login. SSO configuration is per tenant and, when enabled, replaces password + second factor for that tenant's users.",
+        "category": "Authentication & Access Control",
+        "priority": "should"
+      },
+      {
+        "reqId": "REQ-016",
+        "title": "Audit log of auth, view, and admin actions",
+        "description": "The system shall maintain an audit log of every authentication event (success / failure / lockout), every document view, and every administrative action (invite, role change, scope change, unpublish, sync re-trigger, AI review decision), retained for at least 12 months.",
+        "category": "Authentication & Access Control",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-040",
+        "title": "Pre-publish AI document review",
+        "description": "Before a page is published, the system shall run an AI document-review pass that flags: secrets / credentials / API keys, internal-only URLs, Jira / internal-ticket links, internal employee email addresses, and structurally missing content (e.g. empty sections, placeholders such as 'TODO', 'TBD', 'lorem ipsum'). The pipeline shall fail closed on AI provider unavailability.",
+        "category": "AI Document Review",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-041",
+        "title": "Hard block on high-severity AI findings",
+        "description": "A page that triggers any high-severity AI review finding (secrets, internal URLs, Jira links, internal email addresses) shall be blocked from publishing until either a reviewer explicitly confirms a false positive or the page is corrected in Confluence and re-synced. A blocked page shall surface a clear actionable state to the doc owner.",
+        "category": "AI Document Review",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-100",
+        "title": "Portal page render p95 under 1.5 s",
+        "description": "Portal page render p95 shall be under 1.5 s under expected client load (target: 500 concurrent authenticated users at launch), measured from request receipt to last byte of HTML on a representative documentation page.",
+        "category": "Performance",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-101",
+        "title": "Sync latency p95 under 5 minutes",
+        "description": "End-to-end sync latency p95 from Confluence approval to portal visibility shall be under 5 minutes; maximum (including AI review) shall be under 15 minutes. Sync latency shall be observable via a platform metric.",
+        "category": "Performance",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-102",
+        "title": "Encryption in transit and at rest",
+        "description": "All client data in transit shall use TLS 1.2 or higher; all authentication tokens, session cookies, and AI-pipeline payloads (including draft pages awaiting review) shall be encrypted at rest using platform-standard KMS-managed keys.",
+        "category": "Data Protection",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-103",
+        "title": "Per-client data isolation at data-access layer",
+        "description": "Per-client data isolation shall be enforced at the data-access layer; no portal endpoint may return content scoped to a client other than the requesting user's client, even under URL manipulation, parameter tampering, or direct API access. Tenant isolation shall be validated by automated test on every release.",
+        "category": "Data Protection",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-104",
+        "title": "WCAG 2.1 AA accessibility for primary client flows",
+        "description": "The portal shall meet WCAG 2.1 AA for all primary client-facing reading and navigation flows: login, browse, read, version history, search, PDF download. Compliance is verified by automated accessibility checks plus targeted manual review per release.",
+        "category": "Accessibility",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-105",
+        "title": "AI review pipeline fails closed",
+        "description": "The AI document-review pipeline shall fail closed: if an AI provider is unavailable or returns a non-conclusive result, pages remain unpublished and a reviewer is alerted; pages shall not bypass screening regardless of operator pressure.",
+        "category": "AI Document Review",
+        "priority": "must"
+      },
+      {
+        "reqId": "REQ-106",
+        "title": "Horizontal scaling of the portal read tier",
+        "description": "The system shall support horizontal scaling of the portal read tier so capacity grows linearly with client headcount with no architectural change. Read-tier nodes shall be stateless and addable / removable behind the load balancer without portal downtime.",
+        "category": "Scalability",
+        "priority": "should"
+      },
+      {
+        "reqId": "REQ-107",
+        "title": "Tamper-evident audit log retention",
+        "description": "Audit logs (authentication, document view, admin actions, AI review decisions, sync re-trigger, unpublish) shall be tamper-evident \u2014 append-only or cryptographically signed \u2014 and retained for at least 12 months in a separate storage tier with restricted access.",
+        "category": "Audit & Compliance",
+        "priority": "must"
+      }
+    ]
+  },
+  "systemOverview": {
+    "executiveSummary": "Client Documentation Hub is a multi-tenant, AI-assisted, read-only publishing portal that mirrors approved Confluence pages to docs.wsd.com under per-client access control. The system is composed of seven domain services running on AWS Fargate behind an API Gateway, fronted by a Next.js Server-Components frontend on CloudFront, with Aurora PostgreSQL as the system of record, OpenSearch for scoped search, ElastiCache Redis for read caching and sessions, S3 for immutable content blobs plus on-demand PDFs, QLDB for tamper-evident audit, Anthropic Claude via Amazon Bedrock for every AI function (pre-publish review, release notes, summaries, notification copy, quality scoring), SES for transactional email, and WorkOS for enterprise SSO. Confluence remains the single source of truth: the Hub is strictly read-replica with a webhook-driven sync pipeline (5-minute SLA at p95) and a polling fallback.",
+    "systemPurpose": "Replace manual PDF distribution and unscalable Confluence guest access with a secure, auditable, AI-gated client documentation portal that publishes the latest approved Confluence content in near real-time, isolates per-client and shared content, and uses AI to screen sensitive material before publish and to generate release notes and notification copy after publish.",
+    "architecturalApproach": "Service-oriented, multi-tenant SaaS on AWS. Confluence is the upstream authoring source; the Hub ingests approved pages via a webhook receiver (Lambda) plus a polling fallback (Fargate cron job), runs an AI review pipeline that fails closed on any provider error, and persists immutable per-page version records in S3 with relational metadata in Aurora. Read traffic is served by a Next.js frontend with React Server Components rendered on Fargate and aggressively cached at CloudFront and Redis. Cross-cutting concerns (authentication, tenant scoping, audit) are enforced at the data-access layer and validated by an automated isolation test suite on every release. AI behaviour is mediated through one internal AI gateway service so provider, model, and fail-closed semantics can be controlled in one place.",
+    "keyCapabilities": [
+      "Webhook-driven and polling-fallback Confluence sync with p95 < 5 min approval-to-portal latency",
+      "Pre-publish AI document review (secrets, internal URLs, internal tickets, internal emails, missing content) with hard block on high-severity findings",
+      "Immutable per-page version history with on-demand PDF rendering",
+      "Per-tenant authentication (password + TOTP and optional SAML/OIDC SSO via WorkOS), per-tenant access scoping enforced at the data-access layer",
+      "AI-generated release notes (What's New / Breaking / Recommended) and per-client 'Since your last visit' summaries, gated by reviewer approval",
+      "Scoped full-text search with tenant isolation guarantees",
+      "Tamper-evident audit (auth, view, admin, AI review decisions) on QLDB with \u2265 12-month retention",
+      "Email notifications via SES with per-user cadence preferences and AI-authored per-page summaries"
+    ],
+    "externalDependencies": [
+      {
+        "system": "Confluence (WSD instance)",
+        "purpose": "Source of truth for all documentation; provides REST + change-event webhooks",
+        "protocol": "HTTPS REST + webhook",
+        "owner": "WSD Platform / Atlassian"
+      },
+      {
+        "system": "Amazon Bedrock (Anthropic Claude)",
+        "purpose": "All AI functions: review, release notes, summaries, notification copy, quality scoring",
+        "protocol": "AWS SDK (HTTPS)",
+        "owner": "AWS"
+      },
+      {
+        "system": "Amazon SES",
+        "purpose": "Transactional email delivery for notifications",
+        "protocol": "AWS SDK (HTTPS) / SMTP",
+        "owner": "AWS"
+      },
+      {
+        "system": "WorkOS",
+        "purpose": "Per-tenant SAML 2.0 / OIDC SSO mediation",
+        "protocol": "HTTPS REST + SAML/OIDC",
+        "owner": "WorkOS"
+      },
+      {
+        "system": "Atlassian Confluence webhook delivery",
+        "purpose": "Push notification of page changes",
+        "protocol": "HTTPS POST",
+        "owner": "Atlassian"
+      },
+      {
+        "system": "Amazon CloudFront",
+        "purpose": "Edge CDN in front of Next.js frontend",
+        "protocol": "HTTPS",
+        "owner": "AWS"
+      },
+      {
+        "system": "Amazon QLDB",
+        "purpose": "Tamper-evident audit log storage",
+        "protocol": "AWS SDK (HTTPS)",
+        "owner": "AWS"
+      }
+    ],
+    "assumptionsAndConstraints": [
+      "AWS account and platform-standard CDK/Terraform tooling are in place; deployment uses platform-supplied account structure (per-env accounts).",
+      "Confluence webhooks are reachable from a public Lambda endpoint behind WAF; if not, sync degrades to polling only and the latency SLA must be relaxed.",
+      "Anthropic Claude is accessed exclusively via Amazon Bedrock; direct Anthropic API access is not used (single network egress boundary for security + audit).",
+      "WSD's identity directory provides the initial WSD-operator accounts; client tenants are operator-provisioned in v1.",
+      "Email deliverability is DMARC-aligned for docs.wsd.com; DNS is owned by the marketing team and provisioned ahead of launch.",
+      "AI provider failure is non-bypassable: the review pipeline fails closed, which means an AI outage stops publishes. This is an intentional trade-off (REQ-105)."
+    ]
+  },
+  "architecturePrinciples": [
+    {
+      "name": "Confluence is the single source of truth",
+      "description": "The Hub is read-replica with respect to Confluence. No content is authored or edited inside the Hub; portal users cannot mutate documentation.",
+      "rationale": "Eliminates dual-write reconciliation, preserves the existing author workflow, and keeps governance/compliance audit anchored in Confluence's history.",
+      "implications": [
+        "No portal-side editor or comment surface; client feedback is out of scope for v1.",
+        "Two-way sync is explicitly out of scope; Confluence content changes win.",
+        "Recovery from corruption is a re-sync from Confluence, not a backup restore."
+      ],
+      "relatedReqs": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "REQ-005"
+      ]
+    },
+    {
+      "name": "Fail closed on AI and on access",
+      "description": "On any AI-provider failure or any access-control ambiguity, the system blocks rather than degrades-open. Publishes never proceed without a clean AI review; reads never return cross-tenant content.",
+      "rationale": "Both the secret-leak and cross-tenant-leak failure modes are catastrophic; the cost of a brief publish outage is small compared to either.",
+      "implications": [
+        "An AI Bedrock outage halts publishes until cleared.",
+        "Every tenant-scoped query is rejected at the data-access layer unless an active tenant is bound to the session.",
+        "Break-glass procedures for bypassing AI review require two-person approval and audit."
+      ],
+      "relatedReqs": [
+        "REQ-040",
+        "REQ-041",
+        "REQ-105",
+        "REQ-103",
+        "REQ-012"
+      ]
+    },
+    {
+      "name": "Tenant isolation at the data layer, not the UI",
+      "description": "All cross-tenant safety is enforced inside the data-access layer (PostgreSQL row-level security + tenant-bound query helpers, plus search-index tenant filters that are non-overridable).",
+      "rationale": "UI-only filtering inevitably regresses; only data-layer enforcement survives refactors and accidental endpoint additions.",
+      "implications": [
+        "All Postgres reads/writes use a tenant-bound connection or an explicit shared-scope helper.",
+        "OpenSearch queries always inject the tenant filter at the gateway, not at the caller.",
+        "An automated cross-tenant isolation suite runs on every release; failures block deploy."
+      ],
+      "relatedReqs": [
+        "REQ-012",
+        "REQ-013",
+        "REQ-024",
+        "REQ-103"
+      ]
+    },
+    {
+      "name": "Immutable versions and append-only audit",
+      "description": "Published page versions are immutable; the audit log is append-only and tamper-evident.",
+      "rationale": "Lets security and clients answer 'who saw what when?' with confidence; underpins the compliance story.",
+      "implications": [
+        "Version records are written to S3 with object-lock; the metadata row in Postgres is referenced by version_id but the binary blob cannot be overwritten.",
+        "Audit lives in QLDB; integrity is verified daily and on demand.",
+        "Garbage collection of retired versions (oldest beyond 20) writes a metadata-preserved tombstone, never an in-place delete."
+      ],
+      "relatedReqs": [
+        "REQ-004",
+        "REQ-016",
+        "REQ-107"
+      ]
+    },
+    {
+      "name": "AI is mediated by a single internal gateway",
+      "description": "All AI calls (review, release notes, summaries, notifications, quality scoring) go through one AI Gateway service. Callers never speak Bedrock directly.",
+      "rationale": "Centralises fail-closed semantics, prompt versioning, audit, token accounting, and provider/model swaps without touching every call site.",
+      "implications": [
+        "One choke point for AI provider outages \u2014 easier to alert, retry, and circuit-break.",
+        "One place to enforce 'never log raw page content with secrets in plaintext' on AI request/response.",
+        "Provider/model swap (e.g. Claude version bump) requires no change to caller code."
+      ],
+      "relatedReqs": [
+        "REQ-040",
+        "REQ-050",
+        "REQ-051",
+        "REQ-053",
+        "REQ-054",
+        "REQ-105"
+      ]
+    },
+    {
+      "name": "Idempotent, retry-safe pipelines",
+      "description": "Every async stage (webhook receipt, AI review, persist, notification) is idempotent and re-runnable. Steps key off Confluence version IDs and per-step run IDs.",
+      "rationale": "Confluence retries webhooks; AWS retries Lambdas; networks are unreliable. The cheapest defence is to make every step safe to repeat.",
+      "implications": [
+        "Webhook receiver deduplicates by (page_id, source_version_id).",
+        "Persist step is a CAS on (page_id, source_version_id) \u2014 second writer is a no-op.",
+        "Notification batch assembly uses a per-user 'last notified high-water mark' so re-runs don't duplicate emails."
+      ],
+      "relatedReqs": [
+        "REQ-003",
+        "REQ-030",
+        "REQ-103"
+      ]
+    },
+    {
+      "name": "Observability is a product feature",
+      "description": "Sync latency, AI review duration, publish success rate, cross-tenant isolation test outcomes, and AI-fail-closed events are all first-class metrics with alerts and dashboards from day one.",
+      "rationale": "The SLAs in REQ-NFR-001..107 are only credible if they're measured continuously; reactive monitoring is too late.",
+      "implications": [
+        "Each service exports a standard set of histograms and counters (e.g. publish_latency_seconds, ai_review_failures_total).",
+        "CloudWatch Synthetics probe the user-visible flows (login, browse, read, download PDF, search) every 60 s.",
+        "PagerDuty alert rules version-controlled in the same repo as the services."
+      ],
+      "relatedReqs": [
+        "REQ-100",
+        "REQ-101",
+        "REQ-105"
+      ]
+    }
+  ]
+}

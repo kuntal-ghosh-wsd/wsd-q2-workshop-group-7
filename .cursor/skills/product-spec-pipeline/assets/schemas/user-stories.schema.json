@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "product-spec-user-stories",
+  "title": "User Stories Document",
+  "description": "User Stories JSON format produced by the product-spec-pipeline skill. Stories live in one file per PRD; ACs are nested inside each story.",
+  "type": "object",
+  "required": ["prdId", "version", "stories"],
+  "properties": {
+    "prdId": {
+      "type": "string",
+      "pattern": "^PRD-\\d{3,}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "review", "approved"]
+    },
+    "stories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "reqId", "title", "description", "asA", "iWant", "soThat", "acceptanceCriteria"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^US-\\d{3,}$" },
+          "reqId": { "type": "string", "pattern": "^REQ-\\d{3,}$" },
+          "title": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "asA": { "type": "string", "minLength": 1 },
+          "iWant": { "type": "string", "minLength": 1 },
+          "soThat": { "type": "string", "minLength": 1 },
+          "acceptanceCriteria": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["id", "description", "testable"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^AC-\\d{3,}$" },
+                "description": { "type": "string", "minLength": 1 },
+                "testable": { "type": "boolean" },
+                "tadRefs": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "type": "string", "pattern": "^ADR-\\d{3,}$" }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "fbsId": { "type": "string", "pattern": "^FBS-\\d{3,}$" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": true
+}
