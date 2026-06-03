@@ -13,7 +13,11 @@ description: >
   stories", "add acceptance criteria", "write the architecture doc",
   "spec this feature out", "turn this brief into requirements".
   Provides per-artifact structure, quality bars, and copy-pasteable
-  markdown templates.
+  markdown templates. Optionally produces a "Review Bundle" — a JSON file
+  plus a self-contained HTML viewer — so stakeholders can click through
+  requirements, set approval status, and add notes with auto-save to disk.
+  Triggers on phrasing like "build a review bundle", "stakeholder review
+  HTML", or "comparators-style review viewer".
 ---
 
 # Product Spec Pipeline
@@ -32,6 +36,8 @@ Idea / brief / raw requirements
         v
   [3] Acceptance Criteria       (when each story is "done")
         |
+        +-- [R] Review Bundle   (optional: JSON + HTML viewer for stakeholder sign-off)
+        |
         v
   [4] Technical Architecture    (how it's built)
 ```
@@ -48,6 +54,7 @@ Trigger when the user wants to **produce or advance** any of the four artifacts:
 | "break this PRD into user stories", "write stories for ..." | Stage 2 |
 | "add acceptance criteria", "write ACs for US-...", "make this testable" | Stage 3 |
 | "write the architecture doc", "TAD for this", "design the system" | Stage 4 |
+| "build a review bundle", "review JSON", "stakeholder review HTML", "comparators-style review viewer" | Stage R |
 | "go from this idea to an architecture", "full spec workflow" | Stages 1→4 |
 
 Do **not** use this skill for already-written documents that just need editing for tone, length, or formatting — that's plain editing. Use this skill when the artifact is being **produced** or **expanded structurally**.
@@ -76,6 +83,7 @@ Pick the matching stage and load only its reference file. Each reference has str
 | 2. PRD → Stories | `USER-STORIES.md` with US-XXX items | [references/user-stories.md](references/user-stories.md) | [assets/user-stories-template.md](assets/user-stories-template.md) |
 | 3. Stories → ACs | ACs added inside each story | [references/acceptance-criteria.md](references/acceptance-criteria.md) | (no separate file — edits the stories doc) |
 | 4. PRD + Stories → TAD | `TAD.md` with components, data, NFRs, etc. | [references/tad.md](references/tad.md) | [assets/tad-template.md](assets/tad-template.md) |
+| R. (Optional) PRD + Stories + ACs → Review Bundle | `<feature>-requirements-review.json` + matching `.html` viewer for stakeholder click-through | [references/review-bundle.md](references/review-bundle.md) | [assets/review-bundle-template.json](assets/review-bundle-template.json) + [assets/review-viewer.html](assets/review-viewer.html) |
 
 **Load only the references the current request needs.** Do not load all four upfront.
 

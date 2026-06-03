@@ -1,0 +1,49 @@
+{
+  "title": "<Feature Name> — Requirements Review",
+  "pages": [
+    {
+      "id": "<theme-slug-1>",
+      "name": "<Theme name from PRD section 6>",
+      "description": "<One-line description of the theme>",
+      "icon": "📄",
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "title": "<One-line title summarising the requirement>",
+          "description": "<Full requirement text, copied verbatim from the PRD bullet (the sentence after the priority).>",
+          "priority": "must",
+          "domain": "<Optional: subsystem or product area>",
+          "tags": ["<tag1>", "<tag2>"],
+          "stories": [
+            {
+              "id": "US-001",
+              "title": "<One-line story summary>",
+              "asA": "<role, exactly as in the story>",
+              "iWant": "<capability, exactly as in the story>",
+              "soThat": "<benefit, exactly as in the story>",
+              "acs": [
+                {
+                  "id": "AC-101",
+                  "description": "Given <context>, when <action>, then <observable outcome with measurable predicate>."
+                },
+                {
+                  "id": "AC-102",
+                  "description": "<next AC>"
+                }
+              ]
+            }
+          ],
+          "reviewStatus": "not-reviewed",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "<theme-slug-2>",
+      "name": "<Theme 2 name>",
+      "description": "<Theme 2 description>",
+      "icon": "🧩",
+      "requirements": []
+    }
+  ]
+}

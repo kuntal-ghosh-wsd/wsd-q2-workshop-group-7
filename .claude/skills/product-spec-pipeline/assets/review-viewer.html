@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--
+  Generic Requirements Review viewer.
+
+  Pairing convention: this file expects a sibling JSON file with the same
+  basename — i.e. <feature>-requirements-review.html pairs with
+  <feature>-requirements-review.json in the same directory.
+
+  Drop both files into the same folder, open the HTML via any local web
+  server that supports PUT for the JSON file (e.g. the project's dev
+  harness, or `npx http-server -P -c-1 .` with a PUT-enabled middleware)
+  and the viewer auto-loads the JSON on open and auto-saves on edit.
+
+  No build step. No bundler. No framework.
+-->
+<title>Requirements Review</title>
+<style>
+  :root {
+    --bg-deep: #0d0f14;
+    --bg-surface: #151820;
+    --bg-card: #1a1e28;
+    --bg-hover: #222838;
+    --accent: #4fc3f7;
+    --accent-dim: #2a7fa8;
+    --success: #66bb6a;
+    --warning: #ffa726;
+    --danger: #ef5350;
+    --text: #e0e0e0;
+    --text-dim: #8090a0;
+    --text-muted: #556070;
+    --border: #2a3040;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-deep);
+    color: var(--text);
+    line-height: 1.5;
+    font-size: 14px;
+  }
+  .header {
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .progress-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 400px;
+  }
+  .progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease, background 0.3s ease;
+  }
+  .progress-text {
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .stats {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+  }
+  .stat { display: flex; align-items: center; gap: 4px; }
+  .stat-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot-approved { background: var(--success); }
+  .dot-needs-changes { background: var(--warning); }
+  .dot-not-reviewed { background: var(--text-muted); }
+  .dot-rejected { background: var(--danger); }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .filter-btn:hover { border-color: var(--accent-dim); color: var(--text); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(79,195,247,0.1); }
+
+  .page-section {
+    margin-bottom: 32px;
+  }
+  .page-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+  .page-header:hover { opacity: 0.85; }
+  .page-icon { font-size: 20px; }
+  .page-name { font-size: 16px; font-weight: 600; }
+  .page-desc { font-size: 13px; color: var(--text-dim); margin-left: auto; }
+  .page-count {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text-dim);
+  }
+  .page-chevron {
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+  .page-section.collapsed .page-chevron { transform: rotate(-90deg); }
+  .page-section.collapsed .req-list { display: none; }
+
+  .req-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .req-card:hover { border-color: var(--accent-dim); }
+  .req-card.status-approved { border-left: 3px solid var(--success); }
+  .req-card.status-needs-changes { border-left: 3px solid var(--warning); }
+  .req-card.status-rejected { border-left: 3px solid var(--danger); }
+  .req-card.status-not-reviewed { border-left: 3px solid var(--text-muted); }
+
+  .req-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .req-header:hover { background: var(--bg-hover); }
+  .req-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    min-width: 60px;
+  }
+  .req-title { flex: 1; font-weight: 500; }
+  .req-priority {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .priority-must { background: rgba(239,83,80,0.15); color: var(--danger); }
+  .priority-should { background: rgba(255,167,38,0.15); color: var(--warning); }
+  .priority-nice { background: rgba(79,195,247,0.15); color: var(--accent); }
+
+  .status-badge {
+    font-size: 12px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    border: none;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  .status-badge:hover { filter: brightness(1.2); }
+  .badge-approved { background: rgba(102,187,106,0.2); color: var(--success); }
+  .badge-needs-changes { background: rgba(255,167,38,0.2); color: var(--warning); }
+  .badge-not-reviewed { background: rgba(85,96,112,0.3); color: var(--text-muted); }
+  .badge-rejected { background: rgba(239,83,80,0.2); color: var(--danger); }
+
+  .req-expand { font-size: 12px; color: var(--text-muted); transition: transform 0.2s; }
+  .req-card.expanded .req-expand { transform: rotate(90deg); }
+
+  .req-body {
+    display: none;
+    padding: 0 16px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .req-card.expanded .req-body { display: block; }
+
+  .req-description {
+    font-size: 13px;
+    color: var(--text-dim);
+    padding: 12px 0;
+    line-height: 1.6;
+  }
+
+  .stories-section {
+    margin-top: 12px;
+  }
+  .stories-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .story-card {
+    background: var(--bg-surface);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+  }
+  .story-title {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .story-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent-dim);
+  }
+  .story-user {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .ac-list {
+    display: none;
+    margin-top: 6px;
+    padding-left: 12px;
+  }
+  .story-card.expanded .ac-list { display: block; }
+  .ac-item {
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(42,48,64,0.5);
+    display: flex;
+    gap: 6px;
+  }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 52px;
+    flex-shrink: 0;
+  }
+
+  .notes-section {
+    margin-top: 12px;
+  }
+  .notes-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .notes-input {
+    width: 100%;
+    min-height: 60px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+  }
+  .notes-input:focus { outline: none; border-color: var(--accent-dim); }
+  .notes-input::placeholder { color: var(--text-muted); }
+  .note-wrapper { position: relative; }
+  .note-clear {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    background: var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+  }
+  .note-clear:hover { background: var(--danger); color: white; }
+  .note-wrapper.has-text:hover .note-clear,
+  .note-wrapper.has-text:focus-within .note-clear { display: flex; }
+
+  .status-selector {
+    display: flex;
+    gap: 6px;
+    margin-top: 12px;
+  }
+  .status-option {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+  }
+  .status-option:hover { border-color: var(--accent-dim); }
+  .status-option.selected { font-weight: 600; }
+  .status-option.selected[data-status="approved"] { border-color: var(--success); color: var(--success); background: rgba(102,187,106,0.1); }
+  .status-option.selected[data-status="needs-changes"] { border-color: var(--warning); color: var(--warning); background: rgba(255,167,38,0.1); }
+  .status-option.selected[data-status="rejected"] { border-color: var(--danger); color: var(--danger); background: rgba(239,83,80,0.1); }
+  .status-option.selected[data-status="not-reviewed"] { border-color: var(--text-muted); color: var(--text-muted); }
+
+  .tags {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(79,195,247,0.1);
+    color: var(--accent-dim);
+  }
+
+  .guide-toggle {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .guide-toggle:hover { border-color: var(--accent-dim); color: var(--text); }
+  .guide-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(2px);
+    justify-content: center;
+    align-items: flex-start;
+    padding: 40px 20px;
+    overflow-y: auto;
+  }
+  .guide-overlay.visible { display: flex; }
+  .guide-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px 28px;
+    max-width: 800px;
+    width: 100%;
+    position: relative;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+  }
+  .guide-panel h2 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
+  .guide-panel h3 { font-size: 14px; margin: 14px 0 6px; color: var(--text); }
+  .guide-panel p { font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+  .guide-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .guide-close:hover { border-color: var(--accent-dim); color: var(--text); }
+  .guide-example {
+    background: var(--bg-surface);
+    border-left: 3px solid var(--accent-dim);
+    padding: 8px 12px;
+    margin: 6px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .guide-example .label {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 4px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .label-approved { background: rgba(102,187,106,0.2); color: var(--success); }
+  .label-needs-changes { background: rgba(255,167,38,0.2); color: var(--warning); }
+  .label-rejected { background: rgba(239,83,80,0.2); color: var(--danger); }
+  .label-scope { background: rgba(79,195,247,0.15); color: var(--accent); }
+
+  .connect-banner {
+    background: linear-gradient(135deg, rgba(79,195,247,0.1), rgba(79,195,247,0.05));
+    border: 1px solid var(--accent-dim);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .connect-banner.hidden { display: none; }
+  .connect-banner-icon { font-size: 24px; }
+  .connect-banner-text { flex: 1; min-width: 200px; }
+  .connect-banner-text strong { color: var(--accent); display: block; margin-bottom: 2px; }
+  .connect-banner-text span { font-size: 13px; color: var(--text-dim); }
+  .connect-btn {
+    padding: 8px 20px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    background: rgba(79,195,247,0.15);
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  .connect-btn:hover { background: rgba(79,195,247,0.25); }
+
+  .connected-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--success);
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(102,187,106,0.1);
+    border: 1px solid rgba(102,187,106,0.3);
+  }
+  .connected-indicator .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .save-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .save-indicator.show {
+    opacity: 1;
+  }
+  .save-indicator.saved { background: rgba(102,187,106,0.9); color: white; }
+
+  .export-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--accent-dim);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+  .export-btn:hover { background: rgba(79,195,247,0.1); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <h1 id="docTitle">Requirements Review</h1>
+    <div class="progress-bar-container">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-text" id="progressText">0/0 reviewed</span>
+    </div>
+    <div class="stats" id="stats"></div>
+    <span id="connectedIndicator" class="connected-indicator" style="display:none">
+      <span class="dot"></span>
+      <span id="connectedFileName">Auto-saving</span>
+      <a href="#" onclick="event.preventDefault();disconnect()" style="color:var(--text-dim);font-size:11px;margin-left:4px">disconnect</a>
+    </span>
+    <button class="guide-toggle" onclick="toggleGuide()">Review Guide</button>
+    <button class="export-btn" onclick="exportStandalone()" title="Download a standalone copy for sharing via email/slack">Export Copy</button>
+  </div>
+</div>
+
+<div style="max-width:1200px;margin:0 auto;padding:8px 24px 0">
+  <div id="syncStatus" style="font-size:12px;color:var(--text-muted);display:none"></div>
+</div>
+<div class="guide-overlay" id="guideOverlay" onclick="if(event.target===this)toggleGuide()">
+  <div class="guide-panel" id="guidePanel">
+    <button class="guide-close" onclick="toggleGuide()" title="Close">&times;</button>
+    <h2>How to Write Review Notes</h2>
+    <p>Notes can be added at 3 levels. Use the prefixes below to keep them actionable and traceable.</p>
+
+    <h3>Level 1: Requirement Notes (REQ-XXX)</h3>
+    <p>Big-picture feedback on the requirement's scope, clarity, or completeness.</p>
+    <div class="guide-example">
+      <span class="label label-approved">APPROVED</span> Requirement is clear, scoped, and matches the product intent.<br><br>
+      <span class="label label-needs-changes">SCOPE GAP</span> Capability X is also required but not mentioned here. Add it.<br><br>
+      <span class="label label-needs-changes">UNCLEAR</span> "Validates input" is vague. Should list the specific rules.<br><br>
+      <span class="label label-rejected">WRONG</span> Description contradicts the product brief — verify with stakeholder.<br><br>
+      <span class="label label-scope">MISSING REQ</span> No requirement covers feature Y. Add a new REQ.
+    </div>
+
+    <h3>Level 2: User Story Notes (US-XXX)</h3>
+    <p>Feedback on whether the story captures the right user intent and workflow step.</p>
+    <div class="guide-example">
+      <span class="label label-approved">OK</span> Story accurately describes the workflow.<br><br>
+      <span class="label label-needs-changes">WRONG PERSONA</span> "As a developer" should be "As an end user".<br><br>
+      <span class="label label-needs-changes">SPLIT</span> This story covers two distinct flows — split into two stories.<br><br>
+      <span class="label label-needs-changes">MISSING STORY</span> No story for the delete/undo path.<br><br>
+      <span class="label label-rejected">DUPLICATE</span> Same functionality as US-XXX. Remove one.
+    </div>
+
+    <h3>Level 3: Acceptance Criteria Notes (AC-XXX)</h3>
+    <p>Precise feedback on individual Given/When/Then criteria — the most important level for implementation correctness.</p>
+    <div class="guide-example">
+      <span class="label label-approved">VERIFIED</span> Matches the expected behaviour.<br><br>
+      <span class="label label-needs-changes">INCOMPLETE</span> "Shows error" doesn't specify the message. Add the exact text.<br><br>
+      <span class="label label-needs-changes">MISSING AC</span> No AC for: "Given X, when Y, then Z."<br><br>
+      <span class="label label-needs-changes">WRONG BEHAVIOR</span> AC says 3 seconds, should be 5 seconds.<br><br>
+      <span class="label label-rejected">UNTESTABLE</span> "Performs well" is not measurable — rewrite with a numeric threshold.<br><br>
+      <span class="label label-needs-changes">ADD AC</span> Missing happy-path AC.
+    </div>
+
+    <h3>Quick Status Decision Guide</h3>
+    <div class="guide-example">
+      <span class="label label-approved">Approved</span> = Requirement/story/ACs are correct and ready.<br>
+      <span class="label label-needs-changes">Needs Changes</span> = Mostly correct but has gaps, unclear wording, or missing ACs.<br>
+      <span class="label label-rejected">Rejected</span> = Fundamentally wrong, duplicate, or out of scope.
+    </div>
+
+    <h3>How Auto-Save Works</h3>
+    <p>This HTML and its JSON sibling live in the same directory. A local dev server handles both reading and writing:</p>
+    <div class="guide-example" style="border-left-color: var(--success);">
+      <strong>Data flow:</strong><br>
+      <code style="color:var(--accent)">Browser → PUT request → dev server → writes JSON to disk</code><br><br>
+      <strong>On page load:</strong> GETs the JSON, loads into memory.<br>
+      <strong>On every change:</strong> Updates memory → debounced 1s → PUT writes to disk.<br><br>
+      <strong>If a teammate pushed updated reviews:</strong> <code>git pull</code> then refresh the page.
+    </div>
+
+    <h3>Getting Started</h3>
+    <div class="guide-example" style="border-left-color: var(--accent);">
+      <strong>1.</strong> Make sure both files are in the same directory: <code id="guideHtmlName">&lt;feature&gt;-requirements-review.html</code> and <code id="guideJsonName">&lt;feature&gt;-requirements-review.json</code>.<br>
+      <strong>2.</strong> Serve the directory with a PUT-capable dev server. Any of:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;- The project's existing dev harness (if it accepts PUT on JSON files)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;- A simple Node/Python middleware that forwards PUT to <code>fs.writeFile</code><br>
+      <strong>3.</strong> Open this HTML in the browser. Header shows green <span style="color:var(--success)">Auto-saving</span> when ready.<br>
+      <strong>4.</strong> If the banner "Enable auto-save" appears, click <strong>Connect</strong> once.<br>
+      <strong>5.</strong> If PUT is unsupported, all edits still persist to <code>localStorage</code>; use <strong>Export Copy</strong> to share a snapshot.
+    </div>
+
+    <h3>Saving &amp; Sharing</h3>
+    <div class="guide-example" style="border-left-color: var(--success);">
+      <strong>Auto-save to disk:</strong> Every change writes to the JSON file within 1 second.<br><br>
+      <strong>Commit when ready:</strong><br>
+      <code style="color:var(--accent)">git add &lt;feature&gt;-requirements-review.json &amp;&amp; git commit -m "Review: ..."</code>
+    </div>
+    <div class="guide-example" style="border-left-color: var(--text-muted);">
+      <strong>Export Copy</strong> (header button) downloads a timestamped JSON snapshot for sharing via Slack/email. It does NOT modify the project file.
+    </div>
+
+    <h3>Review Workflow</h3>
+    <div class="guide-example" style="border-left-color: var(--accent);">
+      <strong>1.</strong> Walk through each section (themes/pages) in order.<br>
+      <strong>2.</strong> For each requirement: expand it, read the description, expand the stories and ACs.<br>
+      <strong>3.</strong> Compare each AC against the expected behaviour or the product brief.<br>
+      <strong>4.</strong> Set status (Approved / Needs Changes / Rejected) and add notes at the appropriate level.<br>
+      <strong>5.</strong> Every change auto-saves to disk — no manual save needed.<br>
+      <strong>6.</strong> When done, <code>git commit</code> the JSON and push.
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="connect-banner" id="connectBanner">
+    <span class="connect-banner-icon">📁</span>
+    <div class="connect-banner-text">
+      <strong>Enable auto-save to project file</strong>
+      <span>Click Connect to start auto-saving every change to <code id="bannerJsonName">the JSON file</code> on disk. Requires a PUT-capable dev server.</span>
+    </div>
+    <button class="connect-btn" onclick="connectFile()">Connect</button>
+  </div>
+
+  <div class="filter-bar" id="filterBar"></div>
+  <div id="content"></div>
+</div>
+
+<div class="save-indicator" id="saveIndicator">Saved</div>
+
+<script>
+// Derive the JSON sibling filename from this page's own URL.
+// <feature>-requirements-review.html → <feature>-requirements-review.json
+const HTML_BASENAME = (location.pathname.split('/').pop() || 'review.html').replace(/\.html?$/i, '');
+const JSON_FILENAME = HTML_BASENAME + '.json';
+const STORAGE_KEY = HTML_BASENAME + '-review';
+
+const STATUS_OPTIONS = ['not-reviewed', 'approved', 'needs-changes', 'rejected'];
+const STATUS_LABELS = { 'not-reviewed': 'Not Reviewed', 'approved': 'Approved', 'needs-changes': 'Needs Changes', 'rejected': 'Rejected' };
+const STATUS_COLORS = { 'not-reviewed': '#556070', 'approved': '#66bb6a', 'needs-changes': '#ffa726', 'rejected': '#ef5350' };
+
+let reviewData = null;
+let activeFilter = 'all';
+
+let hasUnsavedChanges = false;
+let isConnected = false; // true once we confirm the server supports PUT
+
+function applyDocBranding() {
+  // Update title, banner, and guide pointers from the derived filename + any title in the JSON.
+  const title = (reviewData && reviewData.title) || prettifyTitle(HTML_BASENAME);
+  document.title = title;
+  document.getElementById('docTitle').textContent = title;
+  const banner = document.getElementById('bannerJsonName');
+  if (banner) banner.textContent = JSON_FILENAME;
+  const ghn = document.getElementById('guideHtmlName');
+  const gjn = document.getElementById('guideJsonName');
+  if (ghn) ghn.textContent = HTML_BASENAME + '.html';
+  if (gjn) gjn.textContent = JSON_FILENAME;
+}
+
+function prettifyTitle(slug) {
+  return slug.replace(/[-_]+/g, ' ')
+             .replace(/\b\w/g, c => c.toUpperCase())
+             .replace(/\bReview\b/, 'Review');
+}
+
+async function init() {
+  applyDocBranding();
+  // Load review data from JSON file
+  try {
+    const resp = await fetch(JSON_FILENAME + '?t=' + Date.now());
+    const fileText = await resp.text();
+    const fileData = JSON.parse(fileText);
+    lastKnownFileHash = await computeHash(fileText);
+
+    // Validate it has the expected structure
+    if (fileData && fileData.pages && Array.isArray(fileData.pages)) {
+      // Check localStorage for unsaved review progress
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const localData = JSON.parse(saved);
+          if (localData.pages && Array.isArray(localData.pages)) {
+            const localCount = countReviewData(localData);
+            const fileCount = countReviewData(fileData);
+
+            if (localCount.total > 0 && fileCount.total > 0 && localCount.total !== fileCount.total) {
+              const choice = confirm(
+                'Review data conflict detected!\n\n' +
+                'Browser (localStorage): ' + localCount.reviewed + ' reviewed, ' + localCount.notes + ' notes\n' +
+                'Project file (JSON): ' + fileCount.reviewed + ' reviewed, ' + fileCount.notes + ' notes\n\n' +
+                'Click OK to use Browser data (your unsaved work)\n' +
+                'Click Cancel to use Project file (latest from git)'
+              );
+              reviewData = choice ? localData : fileData;
+            } else if (localCount.total > 0 && fileCount.total === 0) {
+              const choice = confirm(
+                'The project JSON file has no reviews, but your browser has saved progress:\n\n' +
+                'Browser: ' + localCount.reviewed + ' reviewed, ' + localCount.notes + ' notes\n\n' +
+                'Click OK to restore your Browser data\n' +
+                'Click Cancel to start fresh from the Project file'
+              );
+              reviewData = choice ? localData : fileData;
+            } else {
+              reviewData = (localCount.total > fileCount.total) ? localData : fileData;
+            }
+          } else {
+            reviewData = fileData;
+          }
+        } catch { reviewData = fileData; }
+      } else {
+        reviewData = fileData;
+      }
+    } else {
+      throw new Error('Invalid JSON structure — missing pages array');
+    }
+  } catch (e) {
+    console.error('Failed to load JSON file:', e);
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        reviewData = JSON.parse(saved);
+        if (!reviewData?.pages) throw new Error('bad');
+      } catch {
+        document.getElementById('content').innerHTML = '<p style="color:var(--danger);padding:40px;text-align:center">Failed to load review data. Make sure ' + JSON_FILENAME + ' exists and is valid.</p>';
+        return;
+      }
+    } else {
+      document.getElementById('content').innerHTML = '<p style="color:var(--danger);padding:40px;text-align:center">Failed to load review data. Make sure ' + JSON_FILENAME + ' exists in the same directory.</p>';
+      return;
+    }
+  }
+
+  applyDocBranding();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(reviewData));
+  renderFilters();
+  render();
+  updateProgress();
+
+  // Auto-connect: test if the dev server supports PUT (using OPTIONS — no file write)
+  try {
+    const testResp = await fetch(JSON_FILENAME, { method: 'OPTIONS' });
+    if (testResp.status === 204 || testResp.status === 200) {
+      isConnected = true;
+      console.log('Auto-connected: auto-save enabled');
+    }
+  } catch { /* server doesn't support PUT — that's fine */ }
+
+  updateConnectedUI();
+}
+
+function getAllReqsFrom(data) {
+  return (data.pages || []).flatMap(p => p.requirements || []);
+}
+
+function countReviewData(data) {
+  const reqs = getAllReqsFrom(data);
+  let reviewed = 0, notes = 0;
+  for (const r of reqs) {
+    if (r.reviewStatus && r.reviewStatus !== 'not-reviewed') reviewed++;
+    if (r.notes) notes++;
+    for (const s of (r.stories || [])) {
+      if (s.note) notes++;
+      for (const ac of (s.acs || [])) {
+        if (ac.note) notes++;
+      }
+    }
+  }
+  return { reviewed, notes, total: reviewed + notes };
+}
+
+let autoSaveTimer = null;
+let lastKnownFileHash = null;
+let conflictPending = false;
+
+async function computeHash(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(reviewData));
+  localStorage.setItem(STORAGE_KEY + '-ts', new Date().toISOString());
+
+  if (isConnected && !conflictPending) {
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => autoSaveWithConflictCheck(), 1000);
+  }
+}
+
+async function autoSaveWithConflictCheck() {
+  try {
+    const resp = await fetch(JSON_FILENAME + '?t=' + Date.now());
+    const fileText = await resp.text();
+    const fileHash = await computeHash(fileText);
+
+    if (lastKnownFileHash && fileHash !== lastKnownFileHash) {
+      conflictPending = true;
+      const fileData = JSON.parse(fileText);
+      const fileCount = countReviewData(fileData);
+      const myCount = countReviewData(reviewData);
+
+      const choice = confirm(
+        'The project JSON file was modified externally!\n\n' +
+        'Your browser: ' + myCount.reviewed + ' reviewed, ' + myCount.notes + ' notes\n' +
+        'File on disk: ' + fileCount.reviewed + ' reviewed, ' + fileCount.notes + ' notes\n\n' +
+        'OK = Save your browser data (overwrite file)\n' +
+        'Cancel = Load file data (discard your unsaved changes)'
+      );
+
+      if (choice) {
+        await writeToServer();
+      } else {
+        reviewData = fileData;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(reviewData));
+        lastKnownFileHash = fileHash;
+        render();
+        updateProgress();
+        showSaveIndicator('Loaded from project file');
+      }
+      conflictPending = false;
+    } else {
+      await writeToServer();
+    }
+  } catch (e) {
+    console.warn('Auto-save conflict check failed:', e);
+  }
+}
+
+async function connectFile() {
+  if (!reviewData) {
+    alert('Review data not loaded yet. Please wait for the page to finish loading.');
+    return;
+  }
+  try {
+    const resp = await writeToServer();
+    const text = await resp.text();
+    if (resp.ok) {
+      isConnected = true;
+      updateConnectedUI();
+      showSaveIndicator('Connected! All changes now auto-save to the JSON file.');
+    } else {
+      alert('Server rejected the save.\n\nStatus: ' + resp.status + '\n' + text + '\n\nMake sure your dev server accepts PUT for JSON files.');
+    }
+  } catch (e) {
+    alert('Cannot connect to the dev server.\n\nError: ' + e.message + '\n\nMake sure:\n1. A PUT-capable dev server is running\n2. You opened this page via http:// (not as file://)');
+  }
+}
+
+async function writeToServer() {
+  reviewData._reviewMeta = {
+    lastSavedAt: new Date().toISOString(),
+    lastSavedBy: 'reviewer',
+    totalReviewed: getAllReqs().filter(r => r.reviewStatus !== 'not-reviewed').length,
+    totalApproved: getAllReqs().filter(r => r.reviewStatus === 'approved').length,
+    totalNeedsChanges: getAllReqs().filter(r => r.reviewStatus === 'needs-changes').length,
+    totalRejected: getAllReqs().filter(r => r.reviewStatus === 'rejected').length,
+    totalRequirements: getAllReqs().length
+  };
+  const body = JSON.stringify(reviewData, null, 2);
+  const resp = await fetch(JSON_FILENAME, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body
+  });
+  if (resp.ok) {
+    lastKnownFileHash = await computeHash(body);
+  }
+  return resp;
+}
+
+function updateConnectedUI() {
+  const banner = document.getElementById('connectBanner');
+  const indicator = document.getElementById('connectedIndicator');
+  const fileName = document.getElementById('connectedFileName');
+  const syncEl = document.getElementById('syncStatus');
+
+  if (isConnected) {
+    banner.classList.add('hidden');
+    indicator.style.display = 'flex';
+    fileName.textContent = JSON_FILENAME;
+    if (syncEl) {
+      syncEl.innerHTML = '<span style="color:var(--success)">Auto-saving</span> — every change writes to <code>' + JSON_FILENAME + '</code> on disk. Just <code>git commit</code> when ready.';
+      syncEl.style.display = 'block';
+    }
+  } else {
+    banner.classList.remove('hidden');
+    indicator.style.display = 'none';
+    if (syncEl) {
+      syncEl.innerHTML = '<span style="color:var(--text-muted)">Not connected</span> — changes saved to browser only. Click "Connect" to enable auto-save to disk.';
+      syncEl.style.display = 'block';
+    }
+  }
+}
+
+function showSaveIndicator(message) {
+  const el = document.getElementById('saveIndicator');
+  el.classList.add('show', 'saved');
+  el.textContent = message;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function disconnect() {
+  isConnected = false;
+  updateConnectedUI();
+}
+
+function exportStandalone() {
+  const copy = JSON.parse(JSON.stringify(reviewData));
+  copy._reviewMeta = {
+    exportedAt: new Date().toISOString(),
+    exportType: 'standalone-copy',
+    totalReviewed: getAllReqs().filter(r => r.reviewStatus !== 'not-reviewed').length,
+    totalApproved: getAllReqs().filter(r => r.reviewStatus === 'approved').length,
+    totalNeedsChanges: getAllReqs().filter(r => r.reviewStatus === 'needs-changes').length,
+    totalRejected: getAllReqs().filter(r => r.reviewStatus === 'rejected').length,
+    totalRequirements: getAllReqs().length
+  };
+  const ts = new Date().toISOString().slice(0,10);
+  const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = HTML_BASENAME + '-' + ts + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+
+  showSaveIndicator('Exported copy: ' + HTML_BASENAME + '-' + ts + '.json');
+}
+
+function getReq(reqId) {
+  for (const page of reviewData.pages) {
+    for (const req of page.requirements) {
+      if (req.id === reqId) return req;
+    }
+  }
+  return null;
+}
+
+function getAllReqs() {
+  return reviewData.pages.flatMap(p => p.requirements);
+}
+
+function updateProgress() {
+  const all = getAllReqs();
+  const total = all.length || 1;
+  const reviewed = all.filter(r => r.reviewStatus !== 'not-reviewed').length;
+  const approved = all.filter(r => r.reviewStatus === 'approved').length;
+  const needsChanges = all.filter(r => r.reviewStatus === 'needs-changes').length;
+  const rejected = all.filter(r => r.reviewStatus === 'rejected').length;
+  const notReviewed = all.filter(r => r.reviewStatus === 'not-reviewed').length;
+  const pct = Math.round((reviewed / total) * 100);
+
+  const fill = document.getElementById('progressFill');
+  fill.style.width = pct + '%';
+  fill.style.background = pct === 100
+    ? (rejected > 0 ? STATUS_COLORS.rejected : needsChanges > 0 ? STATUS_COLORS['needs-changes'] : STATUS_COLORS.approved)
+    : 'linear-gradient(90deg, ' + STATUS_COLORS.approved + ', ' + STATUS_COLORS.approved + ')';
+
+  document.getElementById('progressText').textContent = reviewed + '/' + all.length + ' reviewed (' + pct + '%)';
+
+  document.getElementById('stats').innerHTML =
+    '<span class="stat"><span class="stat-dot dot-approved"></span> ' + approved + '</span>' +
+    '<span class="stat"><span class="stat-dot dot-needs-changes"></span> ' + needsChanges + '</span>' +
+    '<span class="stat"><span class="stat-dot dot-rejected"></span> ' + rejected + '</span>' +
+    '<span class="stat"><span class="stat-dot dot-not-reviewed"></span> ' + notReviewed + '</span>';
+}
+
+function renderFilters() {
+  const bar = document.getElementById('filterBar');
+  const total = getAllReqs().length;
+  const filters = [
+    { id: 'all', label: 'All (' + total + ')' },
+    { id: 'not-reviewed', label: 'Not Reviewed' },
+    { id: 'approved', label: 'Approved' },
+    { id: 'needs-changes', label: 'Needs Changes' },
+    { id: 'rejected', label: 'Rejected' },
+  ];
+  bar.innerHTML = filters.map(f =>
+    '<button class="filter-btn ' + (activeFilter === f.id ? 'active' : '') + '" onclick="setFilter(\'' + f.id + '\')">' + f.label + '</button>'
+  ).join('');
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  renderFilters();
+  render();
+}
+
+function render() {
+  const container = document.getElementById('content');
+  container.innerHTML = reviewData.pages.map(page => {
+    const reqs = (page.requirements || []).filter(r =>
+      activeFilter === 'all' || (r.reviewStatus || 'not-reviewed') === activeFilter
+    );
+    if (reqs.length === 0 && activeFilter !== 'all') return '';
+
+    return `
+      <div class="page-section" id="page-${page.id}">
+        <div class="page-header" onclick="togglePage('${page.id}')">
+          <span class="page-icon">${page.icon || '📄'}</span>
+          <span class="page-name">${escapeHtml(page.name)}</span>
+          <span class="page-desc">${escapeHtml(page.description || '')}</span>
+          <span class="page-count">${reqs.length} req${reqs.length !== 1 ? 's' : ''}</span>
+          <span class="page-chevron">▼</span>
+        </div>
+        <div class="req-list">
+          ${reqs.map(req => renderReq(req)).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderReq(req) {
+  const status = req.reviewStatus || 'not-reviewed';
+  const badgeClass = `badge-${status}`;
+  const priorityClass = `priority-${(req.priority || 'must').replace('-have','').replace(/^(must|should|nice)$/, (m) => m)}`;
+  const storiesCount = req.stories ? req.stories.length : 0;
+  const acsCount = req.stories ? req.stories.reduce((sum, s) => sum + (s.acs || []).length, 0) : 0;
+
+  return `
+    <div class="req-card status-${status}" id="req-${req.id}">
+      <div class="req-header" onclick="toggleReq('${req.id}')">
+        <span class="req-expand">▶</span>
+        <span class="req-id">${req.id}</span>
+        <span class="req-title">${escapeHtml(req.title)}</span>
+        <span class="req-priority ${priorityClass}">${escapeHtml(req.priority || 'must')}</span>
+        <span class="page-count">${storiesCount} US / ${acsCount} AC</span>
+        <button class="status-badge ${badgeClass}" onclick="event.stopPropagation(); cycleStatus('${req.id}')">${STATUS_LABELS[status]}</button>
+      </div>
+      <div class="req-body">
+        <div class="req-description">${escapeHtml(req.description || '')}</div>
+        <div class="tags">${(req.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
+
+        ${storiesCount > 0 ? `
+          <div class="stories-section">
+            <div class="stories-header">User Stories (${storiesCount})</div>
+            ${req.stories.map(s => `
+              <div class="story-card expanded" id="story-${s.id}">
+                <div class="story-title" onclick="toggleStory('${s.id}')">
+                  <span class="story-id">${s.id}</span>
+                  ${escapeHtml(s.title || '')}
+                </div>
+                <div class="story-user">As a ${escapeHtml(s.asA || '')}, I want ${escapeHtml(s.iWant || '')}, so that ${escapeHtml(s.soThat || '')}</div>
+                <div class="story-note-area">
+                  <div class="note-wrapper ${s.note ? 'has-text' : ''}">
+                    <textarea class="notes-input" style="min-height:40px;font-size:12px"
+                      placeholder="Story note: e.g. WRONG PERSONA, SPLIT, MISSING STORY..."
+                      oninput="setStoryNote('${req.id}', '${s.id}', this.value); this.parentElement.classList.toggle('has-text', !!this.value.trim())">${escapeHtml(s.note || '')}</textarea>
+                    <button class="note-clear" onclick="clearStoryNote('${req.id}', '${s.id}', this)" title="Clear note">&times;</button>
+                  </div>
+                </div>
+                <div class="ac-list">
+                  ${(s.acs || []).map(ac => `
+                    <div class="ac-item">
+                      <span class="ac-id">${ac.id}</span>
+                      <span>${escapeHtml(ac.description || '')}</span>
+                    </div>
+                    <div class="ac-note-area" style="margin:4px 0 4px 58px">
+                      <div class="note-wrapper ${ac.note ? 'has-text' : ''}">
+                        <textarea class="notes-input" style="min-height:30px;font-size:11px"
+                          placeholder="AC note..."
+                          oninput="setAcNote('${req.id}', '${s.id}', '${ac.id}', this.value); this.parentElement.classList.toggle('has-text', !!this.value.trim())">${escapeHtml(ac.note || '')}</textarea>
+                        <button class="note-clear" onclick="clearAcNote('${req.id}', '${s.id}', '${ac.id}', this)" title="Clear note">&times;</button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <div class="status-selector">
+          ${STATUS_OPTIONS.map(s => `
+            <button class="status-option ${status === s ? 'selected' : ''}"
+                    data-status="${s}"
+                    onclick="setStatus('${req.id}', '${s}')">
+              ${STATUS_LABELS[s]}
+            </button>
+          `).join('')}
+        </div>
+
+        <div class="notes-section">
+          <div class="notes-label">Requirement-Level Review Notes</div>
+          <div class="note-wrapper ${req.notes ? 'has-text' : ''}">
+            <textarea class="notes-input"
+                      placeholder="e.g. SCOPE GAP, UNCLEAR, MISSING REQ..."
+                      oninput="setNotes('${req.id}', this.value); this.parentElement.classList.toggle('has-text', !!this.value.trim())">${escapeHtml(req.notes || '')}</textarea>
+            <button class="note-clear" onclick="clearReqNote('${req.id}', this)" title="Clear note">&times;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
+}
+
+function togglePage(pageId) {
+  document.getElementById('page-' + pageId)?.classList.toggle('collapsed');
+}
+
+function toggleReq(reqId) {
+  document.getElementById('req-' + reqId)?.classList.toggle('expanded');
+}
+
+function toggleStory(storyId) {
+  document.getElementById('story-' + storyId)?.classList.toggle('expanded');
+}
+
+function cycleStatus(reqId) {
+  const req = getReq(reqId);
+  if (!req) return;
+  const cur = req.reviewStatus || 'not-reviewed';
+  const idx = STATUS_OPTIONS.indexOf(cur);
+  req.reviewStatus = STATUS_OPTIONS[(idx + 1) % STATUS_OPTIONS.length];
+  save();
+  render();
+  updateProgress();
+}
+
+function setStatus(reqId, status) {
+  const req = getReq(reqId);
+  if (!req) return;
+  req.reviewStatus = status;
+  save();
+  render();
+  updateProgress();
+  setTimeout(() => {
+    document.getElementById('req-' + reqId)?.classList.add('expanded');
+  }, 10);
+}
+
+function setNotes(reqId, text) {
+  const req = getReq(reqId);
+  if (!req) return;
+  req.notes = text.trim() || '';
+  save();
+}
+
+function clearReqNote(reqId, btn) {
+  const req = getReq(reqId);
+  if (!req || !req.notes) return;
+  if (!confirm('Clear this requirement note?\n\n"' + req.notes.slice(0, 100) + (req.notes.length > 100 ? '..."' : '"'))) return;
+  req.notes = '';
+  const wrapper = btn.closest('.note-wrapper');
+  wrapper.querySelector('textarea').value = '';
+  wrapper.classList.remove('has-text');
+  save();
+}
+
+function toggleGuide() {
+  document.getElementById('guideOverlay')?.classList.toggle('visible');
+}
+
+function getStory(reqId, storyId) {
+  const req = getReq(reqId);
+  if (!req) return null;
+  return req.stories?.find(s => s.id === storyId) || null;
+}
+
+function getAc(reqId, storyId, acId) {
+  const story = getStory(reqId, storyId);
+  if (!story) return null;
+  return story.acs?.find(ac => ac.id === acId) || null;
+}
+
+function setStoryNote(reqId, storyId, text) {
+  const story = getStory(reqId, storyId);
+  if (!story) return;
+  story.note = text.trim() || '';
+  save();
+}
+
+function clearStoryNote(reqId, storyId, btn) {
+  const story = getStory(reqId, storyId);
+  if (!story || !story.note) return;
+  if (!confirm('Clear this story note?\n\n"' + story.note.slice(0, 100) + (story.note.length > 100 ? '..."' : '"'))) return;
+  story.note = '';
+  const wrapper = btn.closest('.note-wrapper');
+  wrapper.querySelector('textarea').value = '';
+  wrapper.classList.remove('has-text');
+  save();
+}
+
+function setAcNote(reqId, storyId, acId, text) {
+  const ac = getAc(reqId, storyId, acId);
+  if (!ac) return;
+  ac.note = text.trim() || '';
+  save();
+}
+
+function clearAcNote(reqId, storyId, acId, btn) {
+  const ac = getAc(reqId, storyId, acId);
+  if (!ac || !ac.note) return;
+  if (!confirm('Clear this AC note?\n\n"' + ac.note.slice(0, 100) + (ac.note.length > 100 ? '..."' : '"'))) return;
+  ac.note = '';
+  const wrapper = btn.closest('.note-wrapper');
+  wrapper.querySelector('textarea').value = '';
+  wrapper.classList.remove('has-text');
+  save();
+}
+
+init();
+</script>
+</body>
+</html>
