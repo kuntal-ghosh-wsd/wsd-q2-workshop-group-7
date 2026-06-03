@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "product-spec-build-sequence",
+  "title": "Build Sequence Document",
+  "description": "Build Sequence (FBS list) JSON format produced by the product-spec-pipeline skill.",
+  "type": "object",
+  "required": ["bsId", "prdId", "version", "buildSequence"],
+  "properties": {
+    "bsId": { "type": "string", "pattern": "^BS-\\d{3,}$" },
+    "prdId": { "type": "string", "pattern": "^PRD-\\d{3,}$" },
+    "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "status": { "type": "string", "enum": ["draft", "review", "approved"] },
+    "title": { "type": "string" },
+    "buildPhilosophy": { "type": "string" },
+    "generationStrategy": {
+      "type": "string",
+      "enum": ["vertical-slice", "dependency-first", "domain-grouped", "risk-front-loaded"]
+    },
+    "buildSequence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "summary", "testableOutcomes", "status"],
+        "oneOf": [{ "required": ["storyScope"] }, { "required": ["userStories"] }],
+        "properties": {
+          "id": { "type": "string", "pattern": "^FBS-\\d{3,}$" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "userStories": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^US-\\d{3,}$" }
+          },
+          "storyScope": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["usId", "acIds"],
+              "properties": {
+                "usId": { "type": "string", "pattern": "^US-\\d{3,}$" },
+                "acIds": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string", "pattern": "^AC-\\d{3,}$" }
+                }
+              }
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^FBS-\\d{3,}$" }
+          },
+          "testableOutcomes": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["not-started", "in-progress", "complete", "verified"]
+          },
+          "sessionMeta": {
+            "type": "object",
+            "properties": {
+              "estimatedSize": { "type": "string", "enum": ["small", "medium", "large"] },
+              "estimatedHours": { "type": "number", "minimum": 0.5, "maximum": 16 },
+              "contextRequirements": {
+                "type": "object",
+                "properties": {
+                  "prdSections": { "type": "array", "items": { "type": "string" } },
+                  "tadSections": { "type": "array", "items": { "type": "string" } },
+                  "existingModules": { "type": "array", "items": { "type": "string" } },
+                  "schemas": { "type": "array", "items": { "type": "string" } },
+                  "externalDocs": { "type": "array", "items": { "type": "string" } },
+                  "other": { "type": "array", "items": { "type": "string" } }
+                }
+              },
+              "deliverables": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+          "domain": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}
